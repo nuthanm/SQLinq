@@ -1,0 +1,10 @@
+{
+  "name": "sqlinq-site",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Official website prototype for the SQL to LINQ IDE extension",
+  "scripts": {
+    "sync-config": "node scripts/sync-config.mjs",
+    "start": "npm run sync-config && npx --yes serve . -p 5173"
+  }
+}

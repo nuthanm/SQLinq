@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loading…</title>
+  <meta name="description" content="" id="metaDescription" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/site-config.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header" id="top">
+    <div class="shell header-inner">
+      <a class="brand" href="#home" data-nav="home" aria-label="Home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name" data-bind="productName">Product</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <button type="button" data-nav="home" class="nav-link is-active">Product</button>
+        <button type="button" data-nav="start" class="nav-link">Get started</button>
+        <button type="button" data-nav="transparency" class="nav-link">Live progress</button>
+        <button type="button" data-nav="engineering" class="nav-link">Engineering</button>
+        <button type="button" data-nav="extension" class="nav-link nav-cta">Extension prototype</button>
+      </nav>
+      <button type="button" class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="view is-active" id="view-home" data-view="home" aria-label="Product">
+      <div class="hero">
+        <div class="hero-atmosphere" aria-hidden="true"></div>
+        <div class="shell hero-grid">
+          <div class="hero-copy">
+            <p class="brand-hero" data-bind="productName">Product</p>
+            <h1>SQL to LINQ, inside your IDE — free for every developer.</h1>
+            <p class="lede" data-bind="siteDescription"></p>
+            <div class="cta-row">
+              <button type="button" class="btn btn-primary" data-nav="extension">Open extension prototype</button>
+              <a class="btn btn-ghost" id="githubCta" href="#" target="_blank" rel="noopener">View on GitHub</a>
+            </div>
+            <p class="trust-line">
+              Since <time id="sinceLabel" datetime="">—</time>
+              · Open source · <span data-bind="productPhase"></span>
+            </p>
+          </div>
+          <div class="hero-visual" aria-hidden="true">
+            <div class="hero-code-plane">
+              <div class="plane-label">T-SQL → LINQ</div>
+              <pre class="code-block"><code><span class="tok-kw">SELECT</span> o.OrderId, c.Name, <span class="tok-fn">SUM</span>(oi.Qty)
+<span class="tok-kw">FROM</span> Orders o
+<span class="tok-kw">JOIN</span> Customers c <span class="tok-kw">ON</span> c.Id = o.CustomerId
+<span class="tok-kw">GROUP BY</span> o.OrderId, c.Name;</code></pre>
+              <div class="plane-arrow"></div>
+              <pre class="code-block linq"><code>orders
+  .<span class="tok-fn">Join</span>(customers, o =&gt; o.CustomerId, c =&gt; c.Id,
+    (o, c) =&gt; <span class="tok-kw">new</span> { o, c })
+  .<span class="tok-fn">GroupBy</span>(x =&gt; <span class="tok-kw">new</span> { x.o.OrderId, x.c.Name })
+  .<span class="tok-fn">Select</span>(g =&gt; <span class="tok-kw">new</span> {
+    g.Key.OrderId,
+    g.Key.Name,
+    Total = g.<span class="tok-fn">Sum</span>(x =&gt; x.o.Qty)
+  });</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section class="section shell">
+        <header class="section-head">
+          <h2>Built for the IDE, not another paid converter tab</h2>
+          <p>Clean information density with a Fluent accent — ready for Marketplace demos and .NET teams.</p>
+        </header>
+        <div class="feature-strip">
+          <article>
+            <h3>Any complexity, phase by phase</h3>
+            <p>CTEs, window functions, pivots, and nested subqueries map through a dialect provider — Phase 1 ships MS SQL Server first.</p>
+          </article>
+          <article>
+            <h3>Explain the conversion</h3>
+            <p>Every result shows the concept hierarchy: parse → bind → rewrite → LINQ emit — so teams trust the output.</p>
+          </article>
+          <article>
+            <h3>Execution plan awareness</h3>
+            <p>Surface plan smells beside the LINQ so refactors stay performance-honest.</p>
+          </article>
+          <article>
+            <h3>Extensible core</h3>
+            <p>Plugin providers for future databases without rewriting the IDE shell.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section section-muted">
+        <div class="shell dual">
+          <div>
+            <h2>Roadmap at a glance</h2>
+            <p>Transparent phases so contributors and reviewers know where to plug in.</p>
+          </div>
+          <ol class="roadmap">
+            <li class="is-now"><strong>Phase 1</strong> — MS SQL Server · VS IDE · VS Code · free</li>
+            <li><strong>Phase 2</strong> — PostgreSQL &amp; MySQL dialect packs</li>
+            <li><strong>Phase 3</strong> — EF Core projection helpers &amp; Roslyn refactor actions</li>
+            <li><strong>Phase 4</strong> — Team policy packs &amp; CI conversion checks</li>
+          </ol>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" id="view-start" data-view="start" aria-label="Get started" hidden>
+      <div class="page-hero shell">
+        <p class="eyebrow">Developer guide</p>
+        <h1>Start converting in under five minutes</h1>
+        <p class="lede">Same flow in Visual Studio and VS Code — select SQL, convert, inspect plan, accept LINQ. Editor-specific polish comes later; the core flow stays shared.</p>
+      </div>
+      <div class="shell steps">
+        <article class="step">
+          <span class="step-n">01</span>
+          <h2>Install</h2>
+          <p>From Visual Studio Marketplace or VS Code Marketplace search for <strong data-bind="productName"></strong>.</p>
+        </article>
+        <article class="step">
+          <span class="step-n">02</span>
+          <h2>Connect dialect</h2>
+          <p>Pick <strong>Microsoft SQL Server</strong> (Phase 1). Optional: attach a connection string for live plan analysis.</p>
+        </article>
+        <article class="step">
+          <span class="step-n">03</span>
+          <h2>Convert</h2>
+          <p>Select a <code>.sql</code> fragment or paste into the Conversion popup. Choose method syntax, query syntax, or EF Core <code>IQueryable</code>.</p>
+        </article>
+        <article class="step">
+          <span class="step-n">04</span>
+          <h2>Review</h2>
+          <p>Read Results, Execution Plan suggestions, and the Concept hierarchy before inserting into your C# file.</p>
+        </article>
+      </div>
+      <div class="shell callout-band">
+        <h2>Sample keyboard map</h2>
+        <ul class="kbd-list">
+          <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> — Open conversion popup</li>
+          <li><kbd>Alt</kbd>+<kbd>P</kbd> — Toggle execution plan panel</li>
+          <li><kbd>Alt</kbd>+<kbd>H</kbd> — Concept hierarchy</li>
+          <li><kbd>Enter</kbd> — Accept &amp; insert LINQ</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="view" id="view-transparency" data-view="transparency" aria-label="Live progress" hidden>
+      <div class="page-hero shell">
+        <p class="eyebrow">Behind the development</p>
+        <h1>Live GitHub progress</h1>
+        <p class="lede">Stars, forks, open issues, and a live commit grid pulled from the public repository — so anyone can watch the effort in real time.</p>
+      </div>
+
+      <div class="shell metrics" id="liveMetrics">
+        <div class="metric">
+          <span class="metric-value" id="statStars">—</span>
+          <span class="metric-label">Stars</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" id="statForks">—</span>
+          <span class="metric-label">Forks</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" id="statIssues">—</span>
+          <span class="metric-label">Open issues</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" id="statCommits">—</span>
+          <span class="metric-label">Commits loaded</span>
+        </div>
+      </div>
+
+      <div class="shell panel">
+        <div class="panel-head">
+          <h2>Commit activity heatmap</h2>
+          <span class="live-pill" id="livePill">Loading live data…</span>
+        </div>
+        <div class="heat-legend">
+          <span>Less</span>
+          <i class="heat-0"></i><i class="heat-1"></i><i class="heat-2"></i><i class="heat-3"></i><i class="heat-4"></i>
+          <span>More</span>
+        </div>
+        <div class="heatmap" id="commitHeatmap" aria-label="Commit heatmap"></div>
+        <p class="caption" id="heatCaption">Source: GitHub API · public commits</p>
+      </div>
+
+      <div class="shell panel">
+        <div class="panel-head">
+          <h2>Live commit grid</h2>
+          <label class="since-filter">
+            Since
+            <input type="date" id="sinceDate" value="" />
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="commitTable">
+            <thead>
+              <tr>
+                <th>SHA</th>
+                <th>Date</th>
+                <th>Author</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="4">Loading commits from GitHub…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="caption" id="commitCaption">Live data from GitHub</p>
+        <div class="panel-actions">
+          <button type="button" class="btn btn-ghost btn-sm" id="refreshGithub">Refresh live stats</button>
+          <a class="btn btn-primary btn-sm" id="githubCommitsLink" href="#" target="_blank" rel="noopener">Open commits on GitHub</a>
+        </div>
+      </div>
+
+      <div class="shell stats-grid">
+        <article class="stat-block">
+          <h2>Test statistics</h2>
+          <p class="stat-note">Filled as the converter core lands — placeholders for Marketplace demos.</p>
+          <ul>
+            <li><span>Parser / binder</span><strong>Pending</strong></li>
+            <li><span>Rewrite rules</span><strong>Pending</strong></li>
+            <li><span>LINQ emit</span><strong>Pending</strong></li>
+            <li><span>Plan advisors</span><strong>Pending</strong></li>
+            <li><span>Coverage (core)</span><strong>Pending</strong></li>
+          </ul>
+        </article>
+        <article class="stat-block">
+          <h2>Perf statistics</h2>
+          <p class="stat-note">Measured once golden suites exist.</p>
+          <ul>
+            <li><span>Median convert (≤50 LOC)</span><strong>—</strong></li>
+            <li><span>p95 convert (complex CTE)</span><strong>—</strong></li>
+            <li><span>Plan fetch (local)</span><strong>—</strong></li>
+            <li><span>Memory peak (worker)</span><strong>—</strong></li>
+            <li><span>Cold start extension</span><strong>—</strong></li>
+          </ul>
+        </article>
+        <article class="stat-block">
+          <h2>Bugs during development</h2>
+          <p class="stat-note">Tracked publicly via GitHub Issues when work begins.</p>
+          <ul>
+            <li><span>Identified</span><strong id="bugIdentified">—</strong></li>
+            <li><span>Open</span><strong id="bugOpen">—</strong></li>
+            <li><span>Closed</span><strong id="bugClosed">—</strong></li>
+            <li><span>Fix status</span><strong id="bugFixPct">—</strong></li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="view" id="view-engineering" data-view="engineering" aria-label="Engineering" hidden>
+      <div class="page-hero shell">
+        <p class="eyebrow">How we build it</p>
+        <h1>Topics &amp; architecture</h1>
+        <p class="lede">Clear layers and dialect plugins — designed to grow beyond SQL Server without rewriting the UX. VS and VS Code shells can diverge later while sharing the conversion service.</p>
+      </div>
+      <div class="shell eng-layout">
+        <aside class="topic-list" aria-label="Topics used">
+          <h2>Topics used</h2>
+          <ul>
+            <li>T-SQL lexical analysis &amp; AST</li>
+            <li>Name binding &amp; type inference</li>
+            <li>Relational algebra rewrites</li>
+            <li>LINQ expression trees / Roslyn</li>
+            <li>SHOWPLAN_XML advisors</li>
+            <li>VS / VS Code extension hosts</li>
+            <li>Dialect provider SPI</li>
+            <li>Golden-file differential testing</li>
+          </ul>
+        </aside>
+        <div class="arch">
+          <h2>Extensibility model</h2>
+          <div class="arch-flow" role="list">
+            <div class="arch-node" role="listitem">IDE Shell<br /><small>VS · VS Code</small></div>
+            <div class="arch-node" role="listitem">Conversion Service<br /><small>shared .NET library</small></div>
+            <div class="arch-node accent" role="listitem">IDialectProvider<br /><small>Phase 1: MSSQL</small></div>
+            <div class="arch-node" role="listitem">Emit Targets<br /><small>Method · Query · EF</small></div>
+            <div class="arch-node" role="listitem">Plan Advisor<br /><small>optional live DB</small></div>
+          </div>
+          <pre class="code-block arch-code"><code><span class="tok-kw">public interface</span> <span class="tok-type">IDialectProvider</span> {
+  <span class="tok-type">string</span> Id { <span class="tok-kw">get</span>; }
+  <span class="tok-type">SqlAst</span> Parse(<span class="tok-type">string</span> sql);
+  <span class="tok-type">BoundQuery</span> Bind(<span class="tok-type">SqlAst</span> ast, <span class="tok-type">Schema</span> s);
+  <span class="tok-type">LinqModel</span> Rewrite(<span class="tok-type">BoundQuery</span> q);
+  <span class="tok-type">IReadOnlyList</span>&lt;<span class="tok-type">PlanIssue</span>&gt; Advise(<span class="tok-type">PlanXml</span>? p);
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-extension" data-view="extension" aria-label="Extension prototype" hidden>
+      <div class="page-hero shell ext-hero">
+        <p class="eyebrow">IDE experience</p>
+        <h1>Extension prototype</h1>
+        <p class="lede">Distraction-free conversion surface — extensible panels, no ads, no upsell chrome. Shared UX now; per-editor polish later.</p>
+        <div class="ext-tabs" role="tablist" aria-label="Extension panels">
+          <button type="button" role="tab" class="ext-tab is-active" aria-selected="true" data-panel="convert">1. Conversion</button>
+          <button type="button" role="tab" class="ext-tab" aria-selected="false" data-panel="plan">2. Execution plan</button>
+          <button type="button" role="tab" class="ext-tab" aria-selected="false" data-panel="results">3. Results</button>
+          <button type="button" role="tab" class="ext-tab" aria-selected="false" data-panel="hierarchy">4. Concepts</button>
+          <button type="button" role="tab" class="ext-tab" aria-selected="false" data-panel="extras">5. Also included</button>
+        </div>
+      </div>
+
+      <div class="shell ide-stage">
+        <div class="ide-chrome" aria-hidden="true">
+          <div class="ide-titlebar">
+            <span class="ide-dots"><i></i><i></i><i></i></span>
+            <span class="ide-title"><span data-bind="productName"></span> — Visual Studio / VS Code</span>
+          </div>
+          <div class="ide-body">
+            <aside class="ide-activity">
+              <span class="act is-on"></span><span class="act"></span><span class="act"></span><span class="act"></span>
+            </aside>
+            <aside class="ide-sidebar">
+              <div class="sb-head">EXPLORER</div>
+              <div class="sb-file">OrdersService.cs</div>
+              <div class="sb-file is-active">legacy_orders.sql</div>
+              <div class="sb-file">CustomerRepo.cs</div>
+            </aside>
+            <div class="ide-main">
+              <div class="ide-panel is-active" id="panel-convert" data-panel="convert" role="tabpanel">
+                <div class="popup">
+                  <header class="popup-head">
+                    <div>
+                      <strong>Convert SQL → LINQ</strong>
+                      <span class="chip">MSSQL</span>
+                    </div>
+                    <span class="popup-meta">Free · Offline-capable</span>
+                  </header>
+                  <div class="popup-toolbar">
+                    <label>Target
+                      <select>
+                        <option>Method syntax</option>
+                        <option>Query syntax</option>
+                        <option>EF Core IQueryable</option>
+                      </select>
+                    </label>
+                    <label>Context
+                      <select>
+                        <option>DbContext entities</option>
+                        <option>In-memory collections</option>
+                        <option>IQueryable&lt;T&gt; parameters</option>
+                      </select>
+                    </label>
+                    <label class="check"><input type="checkbox" checked /> Preserve aliases</label>
+                  </div>
+                  <div class="split-editors">
+                    <div>
+                      <div class="ed-label">SQL input</div>
+                      <pre class="ed"><code><span class="tok-kw">WITH</span> Ranked <span class="tok-kw">AS</span> (
+  <span class="tok-kw">SELECT</span> *, <span class="tok-fn">ROW_NUMBER</span>() <span class="tok-kw">OVER</span> (
+    <span class="tok-kw">PARTITION BY</span> CustomerId <span class="tok-kw">ORDER BY</span> OrderDate <span class="tok-kw">DESC</span>
+  ) <span class="tok-kw">AS</span> rn
+  <span class="tok-kw">FROM</span> Orders
+)
+<span class="tok-kw">SELECT</span> * <span class="tok-kw">FROM</span> Ranked <span class="tok-kw">WHERE</span> rn = 1;</code></pre>
+                    </div>
+                    <div>
+                      <div class="ed-label">LINQ preview</div>
+                      <pre class="ed linq"><code>orders
+  .<span class="tok-fn">GroupBy</span>(o =&gt; o.CustomerId)
+  .<span class="tok-fn">Select</span>(g =&gt; g
+    .<span class="tok-fn">OrderByDescending</span>(o =&gt; o.OrderDate)
+    .<span class="tok-fn">First</span>());</code></pre>
+                    </div>
+                  </div>
+                  <footer class="popup-foot">
+                    <button type="button" class="btn btn-ghost btn-sm">Copy</button>
+                    <button type="button" class="btn btn-ghost btn-sm">Open plan</button>
+                    <button type="button" class="btn btn-primary btn-sm">Insert into editor</button>
+                  </footer>
+                </div>
+              </div>
+
+              <div class="ide-panel" id="panel-plan" data-panel="plan" role="tabpanel" hidden>
+                <div class="plan-layout">
+                  <div class="plan-tree">
+                    <div class="plan-title">Estimated execution plan</div>
+                    <ul class="plan-nodes">
+                      <li class="warn">
+                        <span class="op">Clustered Index Scan</span>
+                        <span class="cost">62%</span>
+                        <span class="obj">Orders</span>
+                      </li>
+                      <li>
+                        <span class="op">Sort</span>
+                        <span class="cost">18%</span>
+                        <span class="obj">OrderDate DESC</span>
+                      </li>
+                      <li>
+                        <span class="op">Segment / Sequence Project</span>
+                        <span class="cost">12%</span>
+                        <span class="obj">ROW_NUMBER</span>
+                      </li>
+                      <li>
+                        <span class="op">Filter</span>
+                        <span class="cost">8%</span>
+                        <span class="obj">rn = 1</span>
+                      </li>
+                    </ul>
+                  </div>
+                  <div class="plan-advice">
+                    <div class="plan-title">Suggestions</div>
+                    <article class="advice severity-high">
+                      <h3>Index opportunity</h3>
+                      <p>Scan on <code>Orders</code> dominates cost. Consider covering index on <code>(CustomerId, OrderDate DESC)</code>.</p>
+                    </article>
+                    <article class="advice severity-med">
+                      <h3>LINQ shape note</h3>
+                      <p><code>GroupBy</code> + <code>First</code> may translate differently under EF Core. Prefer ordered take if provider support is limited.</p>
+                    </article>
+                    <article class="advice severity-low">
+                      <h3>Semantic parity</h3>
+                      <p>Window function rewritten to per-group ordering. Verify NULL handling for <code>OrderDate</code>.</p>
+                    </article>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ide-panel" id="panel-results" data-panel="results" role="tabpanel" hidden>
+                <div class="results">
+                  <div class="results-bar">
+                    <span class="ok-pill">Converted</span>
+                    <span>3 warnings · 0 errors · 42 ms</span>
+                    <span class="spacer"></span>
+                    <button type="button" class="btn btn-ghost btn-sm">Run sample</button>
+                    <button type="button" class="btn btn-primary btn-sm">Accept LINQ</button>
+                  </div>
+                  <div class="results-grid">
+                    <div>
+                      <h3>Output</h3>
+                      <pre class="ed linq"><code><span class="tok-kw">var</span> latestByCustomer = orders
+  .<span class="tok-fn">GroupBy</span>(o =&gt; o.CustomerId)
+  .<span class="tok-fn">Select</span>(g =&gt; g
+    .<span class="tok-fn">OrderByDescending</span>(o =&gt; o.OrderDate)
+    .<span class="tok-fn">First</span>());</code></pre>
+                    </div>
+                    <div>
+                      <h3>Diagnostics</h3>
+                      <ul class="diag-list">
+                        <li class="w">W001 · Window → GroupBy rewrite applied</li>
+                        <li class="w">W014 · EF Core: verify First() translation</li>
+                        <li class="i">I003 · Aliases preserved as anonymous members</li>
+                      </ul>
+                      <h3 class="mt">Sample rows (optional connection)</h3>
+                      <table class="mini-table">
+                        <thead><tr><th>CustomerId</th><th>OrderId</th><th>OrderDate</th></tr></thead>
+                        <tbody>
+                          <tr><td>1042</td><td>88921</td><td>2026-06-02</td></tr>
+                          <tr><td>1088</td><td>89004</td><td>2026-06-11</td></tr>
+                          <tr><td>1101</td><td>88770</td><td>2026-05-28</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ide-panel" id="panel-hierarchy" data-panel="hierarchy" role="tabpanel" hidden>
+                <div class="hierarchy">
+                  <div class="plan-title">Conversion concepts (hierarchy)</div>
+                  <ul class="tree">
+                    <li>
+                      <button type="button" class="tree-node is-open" aria-expanded="true">Parse · T-SQL AST</button>
+                      <ul>
+                        <li>WithClause → CTE <code>Ranked</code></li>
+                        <li>Select · Star expansion deferred</li>
+                        <li>OverClause · ROW_NUMBER</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <button type="button" class="tree-node is-open" aria-expanded="true">Bind · Schema</button>
+                      <ul>
+                        <li>Orders → <code>IQueryable&lt;Order&gt;</code></li>
+                        <li>CustomerId : int · OrderDate : datetime2</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <button type="button" class="tree-node is-open" aria-expanded="true">Rewrite · Relational → LINQ ops</button>
+                      <ul>
+                        <li>Window(partition, order) → <code>GroupBy</code> + ordered <code>First</code></li>
+                        <li>Filter(rn = 1) → folded into First()</li>
+                        <li class="hl">Rule: <code>WindowToGroupHead</code></li>
+                      </ul>
+                    </li>
+                    <li>
+                      <button type="button" class="tree-node is-open" aria-expanded="true">Emit · Method syntax</button>
+                      <ul>
+                        <li>Expression tree → Roslyn syntax</li>
+                        <li>Formatting · indent 2 · fluent chain</li>
+                      </ul>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="ide-panel" id="panel-extras" data-panel="extras" role="tabpanel" hidden>
+                <div class="extras-grid">
+                  <article>
+                    <h3>Partial conversion &amp; fidelity score</h3>
+                    <p>When a clause cannot be mapped, keep SQL remnant as comment and score fidelity so users never get a silent wrong answer.</p>
+                  </article>
+                  <article>
+                    <h3>Side-by-side diff</h3>
+                    <p>Original SQL vs generated LINQ with highlighted semantic hops — essential for code review demos.</p>
+                  </article>
+                  <article>
+                    <h3>Round-trip check</h3>
+                    <p>Optional: execute SQL and LINQ (same connection) and diff result sets for parity confidence.</p>
+                  </article>
+                  <article>
+                    <h3>Snippet library</h3>
+                    <p>Curated patterns with known-limitations badges.</p>
+                  </article>
+                  <article>
+                    <h3>Workspace policy</h3>
+                    <p>Team defaults: prefer method syntax, require plan for heavy joins.</p>
+                  </article>
+                  <article>
+                    <h3>Future dialect slots</h3>
+                    <p>Provider dropdown ready — packs install without a new extension binary.</p>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div class="brand brand-foot">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name" data-bind="productName"></span>
+      </div>
+      <p data-bind="productTagline"></p>
+      <p class="fine" id="creditsLine"></p>
+      <p class="fine">Not affiliated with Microsoft. Rename anytime via <code>.env</code> → <code>npm run sync-config</code>.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
