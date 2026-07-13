@@ -360,37 +360,89 @@ function renderHeatmap() {
   const caption = document.getElementById("heatCaption");
   if (!root) return;
 
+  // Build commit counts keyed by local ISO date
   const counts = new Map();
   for (const c of state.commits) {
-    // Convert UTC GitHub timestamp to local calendar date so it aligns with grid cells.
     const raw = c.commit?.author?.date || "";
     if (!raw) continue;
     const day = toLocalIso(new Date(raw));
     counts.set(day, (counts.get(day) || 0) + 1);
   }
 
+  // Start on the Sunday of the week that is 52 weeks before today
   const end = new Date();
   end.setHours(0, 0, 0, 0);
   const start = new Date(end);
-  start.setDate(start.getDate() - 52 * 7 + ((7 - ((start.getDay() + 6) % 7)) % 7));
+  start.setDate(start.getDate() - 52 * 7 - start.getDay()); // align to Sunday
 
-  const cells = [];
+  // GitHub quartile-based level assignment:
+  // Take all non-zero day counts, sort them, split into 4 quartiles.
+  // Each non-zero day is assigned level 1-4 based on which quartile its
+  // count falls into — exactly how GitHub colours contribution squares.
+  const nonZeroCounts = [...counts.values()].filter((n) => n > 0).sort((a, b) => a - b);
+  const q = (p) => nonZeroCounts[Math.max(0, Math.ceil(nonZeroCounts.length * p) - 1)] ?? 1;
+  const q1 = q(0.25);
+  const q2 = q(0.50);
+  const q3 = q(0.75);
+
+  const levelFor = (n) => {
+    if (n === 0) return 0;
+    if (n <= q1) return 1;
+    if (n <= q2) return 2;
+    if (n <= q3) return 3;
+    return 4;
+  };
+
+  // Collect all days Sun to today
+  const allDays = [];
   const walk = new Date(start);
   while (walk <= end) {
-    // Use local date string to stay consistent with the counts keys above.
     const key = toLocalIso(walk);
-    const n = counts.get(key) || 0;
-    const level = n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : n <= 6 ? 3 : 4;
-    cells.push(
-      `<div class="heat-cell heat-${level}" title="${key}: ${n} commit(s)"></div>`
-    );
+    allDays.push({ key, n: counts.get(key) || 0, month: walk.getMonth() });
     walk.setDate(walk.getDate() + 1);
   }
-  root.innerHTML = cells.join("");
+
+  const numWeeks = Math.ceil(allDays.length / 7);
+
+  // Month labels: placed on the first week a new month appears (only if early in week)
+  const monthLabelArr = new Array(numWeeks).fill("");
+  let lastLabelMonth = -1;
+  allDays.forEach((d, i) => {
+    const weekIdx = Math.floor(i / 7);
+    if (d.month !== lastLabelMonth && (i % 7) <= 3) {
+      monthLabelArr[weekIdx] = new Date(d.key + "T00:00:00").toLocaleString("default", { month: "short" });
+      lastLabelMonth = d.month;
+    }
+  });
+
+  const DAY_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""];
+
+  const monthsHtml = `<div class="heatmap-months">${
+    monthLabelArr.map((l) => `<span>${escapeHtml(l)}</span>`).join("")
+  }</div>`;
+
+  const dayLabelsHtml = `<div class="heatmap-day-labels">${
+    DAY_LABELS.map((l) => `<span>${escapeHtml(l)}</span>`).join("")
+  }</div>`;
+
+  const cellsHtml = allDays.map((d) =>
+    `<div class="heat-cell heat-${levelFor(d.n)}" title="${escapeHtml(d.key)}: ${d.n} commit(s)"></div>`
+  ).join("");
+
+  root.innerHTML = `
+    <div class="heatmap-inner">
+      ${monthsHtml}
+      <div class="heatmap-body">
+        ${dayLabelsHtml}
+        <div class="heatmap-grid">${cellsHtml}</div>
+      </div>
+    </div>
+  `;
 
   if (caption) {
     const total = [...counts.values()].reduce((a, b) => a + b, 0);
-    caption.textContent = `Source: GitHub API · last ~53 weeks · ${total} commit(s) in loaded window · refreshed ${new Date().toLocaleString()}`;
+    const suffix = state.isFallback ? " \u00b7 \u26a0 Cached data" : "";
+    caption.textContent = `Source: GitHub API \u00b7 last ~52 weeks \u00b7 ${total} commit(s) \u00b7 refreshed ${new Date().toLocaleString()}${suffix}`;
   }
 }
 
