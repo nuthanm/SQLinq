@@ -135,6 +135,13 @@ async function loadLatestQualityFromDb() {
 function deriveQueryType(clauses) {
   const set = new Set((clauses || []).map((c) => String(c).toUpperCase()));
   const has = (name) => set.has(name);
+  if (has('SELECT ALL')) return 'Basic select all columns';
+  if (has('COLUMN PROJECTION') && has('TABLE ALIAS') && !has('WHERE') && !has('ORDER BY')) {
+    return 'Basic select with column names using alias';
+  }
+  if (has('COLUMN PROJECTION') && !has('WHERE') && !has('ORDER BY')) {
+    return 'Basic select with column names';
+  }
   if (has('JOIN')) return 'Join query';
   if (has('GROUP BY')) return 'Aggregate query';
   if (has('WHERE') && has('ORDER BY')) return 'Filtered + sorted SELECT';
@@ -156,11 +163,13 @@ function summarizeConversionEvent(row, index) {
   const target = payload.target || 'method';
   const databaseType = payload.databaseType || (connectivityMode === 'with' ? 'connected' : 'without');
   const area = `${connectivityMode} connectivity`;
-  const clauses = Array.isArray(payload.clauseProfile)
-    ? payload.clauseProfile.map((c) => String(c || '').toUpperCase()).filter(Boolean)
+  const clauses = Array.isArray(payload.queryElementsDetailed)
+    ? payload.queryElementsDetailed.map((c) => String(c || '').toUpperCase()).filter(Boolean)
+    : Array.isArray(payload.clauseProfile)
+      ? payload.clauseProfile.map((c) => String(c || '').toUpperCase()).filter(Boolean)
     : [];
   const queryElements = clauses.length ? clauses : ['SELECT'];
-  const queryType = deriveQueryType(queryElements);
+  const queryType = String(payload.queryTypeLabel || '').trim() || deriveQueryType(queryElements);
   const concept = `${targetConceptLabel(target)} · ${connectivityMode === 'with' ? 'with DB connectivity' : 'without DB connectivity'}`;
   const displayName = sqlSummary && !/^clauses\s*:/i.test(sqlSummary)
     ? sqlSummary.slice(0, 72)
@@ -358,8 +367,10 @@ app.post("/api/events/conversion", async (req, res) => {
     message: payload.message || null,
     queryFingerprint: payload.queryFingerprint || null,
     querySummary: payload.querySummary || null,
+    queryTypeLabel: payload.queryTypeLabel || null,
     sqlLength: payload.sqlLength == null ? null : Number(payload.sqlLength),
     clauseProfile: Array.isArray(payload.clauseProfile) ? payload.clauseProfile : [],
+    queryElementsDetailed: Array.isArray(payload.queryElementsDetailed) ? payload.queryElementsDetailed : [],
   };
 
   if (!pool) {

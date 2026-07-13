@@ -51,11 +51,50 @@ function buildSafeQuerySummary(sqlText) {
   if (/\border\s+by\b/i.test(compact)) clauses.push('ORDER BY');
   if (/\bgroup\s+by\b/i.test(compact)) clauses.push('GROUP BY');
   if (/\bjoin\b/i.test(compact)) clauses.push('JOIN');
+
+  const hasWhere = clauses.includes('WHERE');
+  const hasOrderBy = clauses.includes('ORDER BY');
+  const hasDistinct = /\bselect\s+distinct\b/i.test(compact);
+  const hasWildcard = /^\s*select\s+(?:distinct\s+)?\*\s+from\b/i.test(compact);
+  const fromMatch = compact.match(/\bfrom\s+([^\s,;]+)(?:\s+(?:as\s+)?([a-z_][\w$]*))?/i);
+  const aliasCandidate = fromMatch ? String(fromMatch[2] || '').trim() : '';
+  const hasAlias = Boolean(aliasCandidate) && !/^(where|order|group|having|join|inner|left|right|full|cross|union|intersect|except)$/i.test(aliasCandidate);
+
+  const queryElementsDetailed = [...clauses];
+  queryElementsDetailed.push(hasWildcard ? 'SELECT ALL' : 'COLUMN PROJECTION');
+  if (hasAlias) queryElementsDetailed.push('TABLE ALIAS');
+  if (hasDistinct) queryElementsDetailed.push('DISTINCT');
+
+  let queryTypeLabel = 'Basic select with column names';
+  if (hasWildcard) {
+    queryTypeLabel = 'Basic select all columns';
+  } else if (hasAlias && !hasWhere && !hasOrderBy) {
+    queryTypeLabel = 'Basic select with column names using alias';
+  }
+  if (hasWhere && hasOrderBy) {
+    queryTypeLabel = hasAlias
+      ? 'Select with alias, filter, and sort'
+      : 'Select with filter and sort';
+  } else if (hasWhere) {
+    queryTypeLabel = hasAlias
+      ? 'Select with alias and filter'
+      : 'Select with filter';
+  } else if (hasOrderBy) {
+    queryTypeLabel = hasAlias
+      ? 'Select with alias and sort'
+      : 'Select with sort';
+  }
+  if (hasDistinct) {
+    queryTypeLabel = hasWhere ? 'Distinct select with filter' : 'Distinct select';
+  }
+
   return {
     queryFingerprint: `f${fnv1a32(compact)}`,
-    querySummary: clauses.length ? `Clauses: ${clauses.join(', ')}` : 'SQL conversion',
+    querySummary: queryTypeLabel,
+    queryTypeLabel,
     sqlLength: compact.length,
     clauseProfile: clauses,
+    queryElementsDetailed,
   };
 }
 

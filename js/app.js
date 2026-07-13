@@ -383,6 +383,13 @@ function normalizeElements(input) {
 
 function inferQueryType(elements) {
   const set = new Set(elements || []);
+  if (set.has("SELECT ALL")) return "Basic select all columns";
+  if (set.has("COLUMN PROJECTION") && set.has("TABLE ALIAS") && !set.has("WHERE") && !set.has("ORDER BY")) {
+    return "Basic select with column names using alias";
+  }
+  if (set.has("COLUMN PROJECTION") && !set.has("WHERE") && !set.has("ORDER BY")) {
+    return "Basic select with column names";
+  }
   if (set.has("JOIN")) return "Join query";
   if (set.has("GROUP BY")) return "Aggregate query";
   if (set.has("WHERE") && set.has("ORDER BY")) return "Filtered + sorted SELECT";
