@@ -412,6 +412,146 @@ app.post("/api/events/conversion", async (req, res) => {
   }
 });
 
+async function createGitHubIssue(failureData) {
+  const token = process.env.GITHUB_TOKEN;
+  const owner = process.env.GITHUB_OWNER || "nuthanm";
+  const repo = process.env.GITHUB_REPO || "SQLinq";
+
+  if (!token) {
+    throw new Error("GITHUB_TOKEN not configured in environment");
+  }
+
+  const queryId = failureData.id || "unknown";
+  const title = failureData.name || "Untitled query";
+  const stage = failureData.parseStatus === "Fail" ? "Parser" : "Converter";
+  const target = failureData.target || "method";
+  const connectivityMode = failureData.connectivityMode || "without";
+  const dbTag = failureData.databaseType || "unknown";
+  const correctness = Number(failureData.correctness ?? 0).toFixed(1);
+  const exact = failureData.exactMatch ? "Yes" : "No";
+  const timing = Number(failureData.timeMs ?? 0);
+
+  const body = `# [Conversion Failure] ${queryId} - ${title}
+
+## 1. Summary
+- Query ID: ${queryId}
+- Query Title: ${title}
+- Failure Stage: ${stage}
+- Status: Failed
+- Severity: High
+
+## 2. Query Metadata
+| Field | Value |
+|---|---|
+| Query Type | ${failureData.queryType || "unknown"} |
+| Syntax Target | ${target} |
+| Connectivity Mode | ${connectivityMode} |
+| Database Tag | ${dbTag} |
+| Parse Status | ${failureData.parseStatus || "unknown"} |
+| Convert Status | ${failureData.convertStatus || "unknown"} |
+| Correctness | ${correctness}% |
+| Exact Match | ${exact} |
+| Convert Time | ${timing} ms |
+
+## 3. Failure Details
+- Failure Reason: ${failureData.failureReason || "Not provided"}
+- Regression Area: ${failureData.area || "General"}
+
+## 4. Reproduction Steps
+1. Open SQLinq converter in VS Code.
+2. Set target to ${target}.
+3. Set connectivity mode to ${connectivityMode}.
+4. Run conversion for query ${queryId}.
+5. Observe parser/converter failure.
+
+## 5. Expected vs Actual
+### Expected
+- Query should convert to valid LINQ for this supported pattern or return a clearly scoped unsupported-clause warning.
+
+### Actual
+- Conversion failed during ${stage.toLowerCase()} stage.
+
+## 6. Impact
+- Blocks successful conversion for this query shape.
+- Reduces trust score and release readiness.
+
+## 7. Action Checklist
+- [ ] Reproduce locally and confirm failure.
+- [ ] Add/adjust parser or conversion rule.
+- [ ] Add regression test in test suite.
+- [ ] Verify output in method/query/ef targets as applicable.
+- [ ] Link/close this issue with fix commit.`;
+
+  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: `[Conversion Failure] ${queryId} - ${title}`,
+      body: body,
+      labels: ["conversion-failure", stage.toLowerCase()],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`GitHub API error: ${response.status} ${errorText}`);
+  }
+
+  const issue = await response.json();
+  return {
+    issueNumber: issue.number,
+    issueUrl: issue.html_url,
+    queryId: queryId,
+  };
+}
+
+async function updateQueryIssueRef(queryId, issueNumber) {
+  if (!pool) return;
+  try {
+    await pool.query(
+      `UPDATE benchmark_queries
+       SET issue_ref = $1
+       WHERE query_id = $2`,
+      [`#${issueNumber}`, queryId]
+    );
+  } catch (err) {
+    console.error(`Failed to update issue ref for query ${queryId}:`, err.message);
+  }
+}
+
+app.post("/api/github-issues/create", async (req, res) => {
+  try {
+    const failureData = req.body || {};
+
+    if (!failureData.id) {
+      return res.status(400).json({ ok: false, message: "Missing query ID" });
+    }
+
+    const result = await createGitHubIssue(failureData);
+
+    if (failureData.id) {
+      await updateQueryIssueRef(failureData.id, result.issueNumber);
+    }
+
+    return res.json({
+      ok: true,
+      issueNumber: result.issueNumber,
+      issueUrl: result.issueUrl,
+      message: `Issue #${result.issueNumber} created successfully`,
+    });
+  } catch (err) {
+    console.error("GitHub issue creation failed:", err.message);
+    return res.status(500).json({
+      ok: false,
+      message: err.message || "Failed to create GitHub issue",
+    });
+  }
+});
+
 app.post("/api/release-compare/save", async (req, res) => {
   try {
     const payload = req.body || {};

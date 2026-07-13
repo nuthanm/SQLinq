@@ -945,6 +945,68 @@ function setupQaFilter() {
   });
 }
 
+async function createIssueForFailure(failureRow, button) {
+  if (!button) return;
+
+  const wasDisabled = button.disabled;
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = "Creating...";
+
+  try {
+    const res = await fetch(apiUrl("/api/github-issues/create"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: failureRow.id,
+        name: failureRow.name,
+        queryType: failureRow.queryType,
+        parseStatus: failureRow.parseStatus,
+        convertStatus: failureRow.convertStatus,
+        target: failureRow.target,
+        connectivityMode: failureRow.connectivityMode,
+        databaseType: failureRow.databaseType,
+        correctness: failureRow.correctness,
+        exactMatch: failureRow.exactMatch,
+        timeMs: failureRow.timeMs,
+        status: failureRow.status,
+        failureReason: failureRow.failureReason,
+        area: failureRow.area,
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || `HTTP ${res.status}`);
+    }
+
+    const result = await res.json();
+    if (result.ok && result.issueNumber) {
+      failureRow.issue = `#${result.issueNumber}`;
+      const row = button.closest("tr");
+      if (row) {
+        const cell = row.querySelector("td:last-child");
+        if (cell && cfg?.githubUrl) {
+          cell.innerHTML = `<a href="${cfg.githubUrl}/issues/${result.issueNumber}" target="_blank" rel="noopener">#${result.issueNumber} &rarr; ${escapeHtml(cfg.githubUrl.split("/").pop())}</a>`;
+        }
+      }
+      button.textContent = "✓ Created";
+      button.disabled = true;
+    } else {
+      throw new Error(result.message || "Issue creation returned unexpected response");
+    }
+  } catch (err) {
+    console.error("Failed to create issue:", err);
+    button.textContent = "✗ Failed";
+    button.style.color = "#c0392b";
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.style.color = "";
+      button.disabled = wasDisabled;
+    }, 3000);
+  }
+}
+
 function renderFailureIssues(failures) {
   const panel = document.getElementById("failureIssuesPanel");
   const tbody = document.querySelector("#failureIssuesTable tbody");
@@ -963,7 +1025,7 @@ function renderFailureIssues(failures) {
         ? `<a href="${cfg.githubUrl}/issues/${issueNo}" target="_blank" rel="noopener">#${issueNo} &rarr; ${escapeHtml(cfg.githubUrl.split("/").pop())}</a>`
         : row.issue
           ? escapeHtml(row.issue)
-          : `<a href="${cfg?.githubUrl || "#"}/issues/new" target="_blank" rel="noopener" class="qa-no-issue">No issue &mdash; create one</a>`;
+          : `<button class="qa-create-issue-btn" onclick="createIssueForFailure(${JSON.stringify(row)}, this)">Create issue →</button>`;
       return `<tr class="qa-row-risk">
           <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
           <td>${escapeHtml(row.parseStatus)}</td>
