@@ -22,11 +22,11 @@ const EMPTY_QUALITY_REPORT = {
 };
 
 function getApiBaseUrl() {
-  const fromConfig = String(cfg?.apiBaseUrl || cfg?.siteUrl || "").trim();
-  if (fromConfig) return fromConfig.replace(/\/+$/, "");
   if (typeof window !== "undefined" && window.location.protocol !== "file:") {
     return window.location.origin;
   }
+  const fromConfig = String(cfg?.apiBaseUrl || cfg?.siteUrl || "").trim();
+  if (fromConfig) return fromConfig.replace(/\/+$/, "");
   return "";
 }
 
