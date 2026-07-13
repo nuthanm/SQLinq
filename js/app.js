@@ -283,6 +283,13 @@ function renderCommitTable() {
   }
 }
 
+function toLocalIso(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function renderHeatmap() {
   const root = document.getElementById("commitHeatmap");
   const caption = document.getElementById("heatCaption");
@@ -290,8 +297,10 @@ function renderHeatmap() {
 
   const counts = new Map();
   for (const c of state.commits) {
-    const day = (c.commit?.author?.date || "").slice(0, 10);
-    if (!day) continue;
+    // Convert UTC GitHub timestamp to local calendar date so it aligns with grid cells.
+    const raw = c.commit?.author?.date || "";
+    if (!raw) continue;
+    const day = toLocalIso(new Date(raw));
     counts.set(day, (counts.get(day) || 0) + 1);
   }
 
@@ -303,7 +312,8 @@ function renderHeatmap() {
   const cells = [];
   const walk = new Date(start);
   while (walk <= end) {
-    const key = walk.toISOString().slice(0, 10);
+    // Use local date string to stay consistent with the counts keys above.
+    const key = toLocalIso(walk);
     const n = counts.get(key) || 0;
     const level = n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : n <= 6 ? 3 : 4;
     cells.push(
