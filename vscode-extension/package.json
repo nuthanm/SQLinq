@@ -41,8 +41,8 @@
       "properties": {
         "sqlinq.telemetryEndpoint": {
           "type": "string",
-          "default": "https://sqlinq.vercel.app/api/events/conversion",
-          "description": "API endpoint for conversion event sync. Override this for local development, for example http://localhost:5173/api/events/conversion"
+          "default": "",
+          "description": "API endpoint for conversion event sync. When empty, SQLinq uses runtime-config.json or SQLINQ_API_BASE_URL/SITE_URL environment fallback."
         },
         "sqlinq.telemetrySource": {
           "type": "string",

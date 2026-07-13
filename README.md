@@ -112,6 +112,7 @@ vercel --prod
 Environment variable notes:
 
 - `DATABASE_URL` is optional; required only for DB-backed API persistence
+- `API_BASE_URL` can be set to your deployed domain (e.g. `https://your-domain.com`) so generated web config and extension runtime endpoint follow domain changes
 - quality dashboard can fall back to local report data when DB is unavailable
 
 ## Roadmap Snapshot

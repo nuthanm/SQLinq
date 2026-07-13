@@ -1,7 +1,13 @@
 const vscode = require('vscode');
+const https = require('https');
 const { convertSqlToLinq } = require('./src/sqlinq-converter');
 
-const DEFAULT_TELEMETRY_ENDPOINT = 'https://sqlinq.vercel.app/api/events/conversion';
+let runtimeConfig = {};
+try {
+  runtimeConfig = require('./runtime-config.json');
+} catch {
+  runtimeConfig = {};
+}
 
 const SAMPLE_SQL = `SELECT CustomerId, Name
 FROM Customers
@@ -12,8 +18,11 @@ function getTelemetryConfig() {
   const cfg = vscode.workspace.getConfiguration('sqlinq');
   const configured = String(cfg.get('telemetryEndpoint') || '').trim();
   const databaseType = String(cfg.get('databaseType') || 'connected').trim().toLowerCase();
+  const envBase = String(process.env.SQLINQ_API_BASE_URL || process.env.SITE_URL || '').trim();
+  const runtimeEndpoint = String(runtimeConfig.telemetryEndpoint || '').trim();
+  const endpoint = configured || runtimeEndpoint || (envBase ? `${envBase.replace(/\/+$/, '')}/api/events/conversion` : '');
   return {
-    endpoint: configured || DEFAULT_TELEMETRY_ENDPOINT,
+    endpoint,
     source: String(cfg.get('telemetrySource') || 'vscode-extension').trim(),
     databaseType,
   };
@@ -72,24 +81,74 @@ function inferStatuses(result) {
 
 async function sendConversionEvent(data) {
   const telemetry = getTelemetryConfig();
-  if (!telemetry.endpoint) return;
+  if (!telemetry.endpoint) {
+    return {
+      ok: false,
+      reason: 'Telemetry endpoint is not configured.',
+    };
+  }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 1500);
+  const body = JSON.stringify({
+    source: telemetry.source,
+    isTest: false,
+    databaseType: data.connectivityMode === 'with' ? telemetry.databaseType : 'without',
+    ...data,
+  });
+
+  const postViaHttps = () => new Promise((resolve, reject) => {
+    const req = https.request(
+      telemetry.endpoint,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+        timeout: 5000,
+      },
+      (res) => {
+        res.on('data', () => {});
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 400) {
+            resolve();
+          } else {
+            reject(new Error(`Telemetry sync failed with status ${res.statusCode || 'unknown'}`));
+          }
+        });
+      }
+    );
+
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('Telemetry request timeout')));
+    req.write(body);
+    req.end();
+  });
+
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeout = setTimeout(() => {
+    if (controller) controller.abort();
+  }, 5000);
   try {
-    await fetch(telemetry.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        source: telemetry.source,
-        isTest: false,
-        databaseType: data.connectivityMode === 'with' ? telemetry.databaseType : 'without',
-        ...data,
-      }),
-      signal: controller.signal,
-    });
-  } catch {
+    if (typeof fetch === 'function') {
+      const res = await fetch(telemetry.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: controller ? controller.signal : undefined,
+      });
+      if (!res.ok) {
+        throw new Error(`Telemetry sync failed with status ${res.status}`);
+      }
+    } else {
+      await postViaHttps();
+    }
+    return { ok: true };
+  } catch (err) {
     // Telemetry sync is best-effort and should never block conversion UX.
+    return {
+      ok: false,
+      reason: err && err.message ? err.message : 'Unknown telemetry error',
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -202,7 +261,7 @@ async function convertSelectionDirect(editor, target = 'method') {
 
   vscode.window.showInformationMessage(`Quick convert complete. ${result.status}`);
   const inferred = inferStatuses(result);
-  await sendConversionEvent({
+  const sync = await sendConversionEvent({
     connectivityMode: 'without',
     target,
     ...safeSummary,
@@ -214,6 +273,9 @@ async function convertSelectionDirect(editor, target = 'method') {
     issue: null,
     message: result.status,
   });
+  if (sync.ok) {
+    vscode.window.showInformationMessage('Telemetry synced to dashboard.');
+  }
 }
 
 function getWebviewContent(webview, state) {
@@ -298,6 +360,7 @@ function getWebviewContent(webview, state) {
         <button class="secondary" id="copy">Copy output</button>
       </div>
       <div class="status" id="status">${initialStatus}</div>
+      <div class="status muted" id="telemetryStatus">Telemetry: idle</div>
       <div class="outputs">
         <h3>Expected output results in this mode</h3>
         <ul id="modeOutputs">${connectivityRows}</ul>
@@ -310,6 +373,7 @@ function getWebviewContent(webview, state) {
       const connectivity = document.getElementById('connectivity');
       const output = document.getElementById('output');
       const status = document.getElementById('status');
+      const telemetryStatus = document.getElementById('telemetryStatus');
       const modeOutputs = document.getElementById('modeOutputs');
 
       function setState(nextStatus, nextOutput, outputs) {
@@ -325,6 +389,7 @@ function getWebviewContent(webview, state) {
       }
 
       document.getElementById('convert').addEventListener('click', () => {
+        telemetryStatus.textContent = 'Telemetry: syncing...';
         vscode.postMessage({ type: 'convert', sql: sql.value, target: target.value, connectivity: connectivity.value });
       });
 
@@ -357,6 +422,9 @@ function getWebviewContent(webview, state) {
         const message = event.data;
         if (message.type === 'result') {
           setState(message.status, message.output, message.outputs);
+        }
+        if (message.type === 'telemetry') {
+          telemetryStatus.textContent = message.status;
         }
       });
 
@@ -417,7 +485,7 @@ function activate(context) {
             vscode.window.showInformationMessage(`${result.status} Mode: ${connectivity.label}.`);
           }
           const inferred = inferStatuses(result);
-          await sendConversionEvent({
+          const sync = await sendConversionEvent({
             connectivityMode,
             target: message.target || 'method',
             ...safeSummary,
@@ -428,6 +496,10 @@ function activate(context) {
             timeMs: Date.now() - start,
             issue: null,
             message: result.ok ? result.status : result.error,
+          });
+          panel.webview.postMessage({
+            type: 'telemetry',
+            status: sync.ok ? 'Telemetry: synced to dashboard.' : `Telemetry: failed (${sync.reason})`,
           });
         }
         return;
@@ -518,7 +590,7 @@ function activate(context) {
 
     vscode.window.showInformationMessage(result.status);
     const inferred = inferStatuses(result);
-    await sendConversionEvent({
+    const sync = await sendConversionEvent({
       connectivityMode: 'without',
       target: target.value,
       ...safeSummary,
@@ -530,6 +602,9 @@ function activate(context) {
       issue: null,
       message: result.status,
     });
+    if (sync.ok) {
+      vscode.window.showInformationMessage('Telemetry synced to dashboard.');
+    }
   });
 
   const uiDisposable = vscode.commands.registerCommand('sqlinq.openConverterUi', async () => {

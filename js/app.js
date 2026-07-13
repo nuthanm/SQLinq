@@ -20,6 +20,21 @@ const EMPTY_QUALITY_REPORT = {
   queries: [],
 };
 
+function getApiBaseUrl() {
+  const fromConfig = String(cfg?.apiBaseUrl || cfg?.siteUrl || "").trim();
+  if (fromConfig) return fromConfig.replace(/\/+$/, "");
+  if (typeof window !== "undefined" && window.location.protocol !== "file:") {
+    return window.location.origin;
+  }
+  return "";
+}
+
+function apiUrl(path) {
+  const base = getApiBaseUrl();
+  if (!base) return path;
+  return `${base}${path}`;
+}
+
 function applyBranding() {
   if (!cfg) return;
   document.title = `${cfg.productName} — ${cfg.productTagline}`;
@@ -697,7 +712,7 @@ function setupMetricsViewToggle() {
 async function loadQualityDashboard() {
   setQualityPill("Loading live conversion data…");
   try {
-    const liveRes = await fetch("/api/dashboard/conversion-events", { cache: "no-store" });
+    const liveRes = await fetch(apiUrl("/api/dashboard/conversion-events"), { cache: "no-store" });
     if (liveRes.ok) {
       const liveReport = await liveRes.json();
       if (Array.isArray(liveReport?.queries) && liveReport.queries.length) {
@@ -707,7 +722,7 @@ async function loadQualityDashboard() {
       }
     }
 
-    const res = await fetch("/api/dashboard/quality", { cache: "no-store" });
+    const res = await fetch(apiUrl("/api/dashboard/quality"), { cache: "no-store" });
     if (!res.ok) throw new Error(`dashboard quality API unavailable (${res.status})`);
     const report = await res.json();
     renderQualityDashboard(report);
