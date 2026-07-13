@@ -277,8 +277,15 @@ app.get("/api/health", async (_req, res) => {
 
 app.get("/api/dashboard/quality", async (_req, res) => {
   try {
-    const dbReport = await loadLatestQualityFromDb();
-    if (dbReport) return res.json(dbReport);
+    if (dbEnabled()) {
+      const dbReport = await loadLatestQualityFromDb();
+      if (dbReport) return res.json(dbReport);
+      return res.json({
+        ...dashSummary(),
+        source: "database",
+        message: "No database benchmark report is available yet.",
+      });
+    }
 
     const fileReport = await loadLatestQualityFromFile();
     if (fileReport) return res.json(fileReport);
