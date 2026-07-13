@@ -52,6 +52,13 @@
           "command": "sqlinq.openConverterUi",
           "group": "navigation@52"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "sqlinq.openConverterUi",
+          "when": "resourceExtname == .sql || resourceLangId == sql",
+          "group": "navigation@50"
+        }
       ]
     },
     "configuration": {
