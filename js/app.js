@@ -272,24 +272,25 @@ function renderIssueTrackingGraph(containerId) {
 }
 
 function renderMetrics() {
+  const mark = state.isFallback ? "*" : "";
   const stars = document.getElementById("statStars");
   const forks = document.getElementById("statForks");
   const pullRequests = document.getElementById("statPullRequests");
   const issues = document.getElementById("statIssues");
   const commits = document.getElementById("statCommits");
   if (state.repo) {
-    if (stars) stars.textContent = Number(state.repo.stargazers_count).toLocaleString();
-    if (forks) forks.textContent = Number(state.repo.forks_count).toLocaleString();
+    if (stars) stars.textContent = Number(state.repo.stargazers_count).toLocaleString() + mark;
+    if (forks) forks.textContent = Number(state.repo.forks_count).toLocaleString() + mark;
   }
   if (pullRequests) {
     pullRequests.textContent =
-      state.pullRequests == null ? "—" : Number(state.pullRequests).toLocaleString();
+      state.pullRequests == null ? "—" : Number(state.pullRequests).toLocaleString() + mark;
   }
   if (issues) {
     issues.textContent =
-      state.issuesOpen == null ? "—" : Number(state.issuesOpen).toLocaleString();
+      state.issuesOpen == null ? "—" : Number(state.issuesOpen).toLocaleString() + mark;
   }
-  if (commits) commits.textContent = state.commits.length.toLocaleString();
+  if (commits) commits.textContent = state.commits.length.toLocaleString() + mark;
 
   const open = state.issuesOpen;
   const closed = state.issuesClosed;
@@ -298,11 +299,11 @@ function renderMetrics() {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   };
-  set("bugOpen", open == null ? "—" : String(open));
-  set("bugClosed", closed == null ? "—" : String(closed));
-  set("bugIdentified", identified == null ? "—" : String(identified));
+  set("bugOpen", open == null ? "—" : String(open) + mark);
+  set("bugClosed", closed == null ? "—" : String(closed) + mark);
+  set("bugIdentified", identified == null ? "—" : String(identified) + mark);
   if (identified && identified > 0 && closed != null) {
-    set("bugFixPct", `${((closed / identified) * 100).toFixed(1)}%`);
+    set("bugFixPct", `${((closed / identified) * 100).toFixed(1)}%${mark}`);
   } else {
     set("bugFixPct", identified === 0 ? "n/a" : "—");
   }
@@ -1798,6 +1799,55 @@ if (copyConversion) {
 }
 
 let loading = false;
+const GITHUB_CACHE_KEY = "sqlinq_github_cache";
+
+function saveGithubCache() {
+  try {
+    localStorage.setItem(GITHUB_CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      cachedState: {
+        repo: state.repo,
+        commits: state.commits,
+        issuesOpen: state.issuesOpen,
+        issuesClosed: state.issuesClosed,
+        issuesInProgress: state.issuesInProgress,
+        pullRequests: state.pullRequests,
+      },
+    }));
+  } catch {}
+}
+
+function loadGithubCache() {
+  try {
+    const raw = localStorage.getItem(GITHUB_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function showFallbackBanner(message) {
+  let banner = document.getElementById("githubFallbackBanner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "githubFallbackBanner";
+    banner.className = "fallback-banner";
+    // Insert before the first .shell.panel in main
+    const anchor = document.querySelector("#main .shell.panel");
+    if (anchor) anchor.parentNode.insertBefore(banner, anchor);
+    else document.querySelector("#main")?.appendChild(banner);
+  }
+  banner.innerHTML = `
+    <span class="fallback-banner-icon">&#9888;</span>
+    <span class="fallback-banner-text">${escapeHtml(message)}</span>
+    <button type="button" class="fallback-banner-close" aria-label="Dismiss" onclick="this.parentElement.hidden=true">&#10005;</button>
+  `;
+  banner.hidden = false;
+}
+
+function hideFallbackBanner() {
+  const banner = document.getElementById("githubFallbackBanner");
+  if (banner) banner.hidden = true;
+}
+
 async function loadGithubLive(force = false) {
   if (!cfg) return;
   if (loading) return;
@@ -1833,6 +1883,11 @@ async function loadGithubLive(force = false) {
     state.issuesClosed = closedIssues.total_count ?? 0;
     state.issuesInProgress = inProgressIssues.total_count ?? 0;
     state.pullRequests = openPullRequests.total_count ?? 0;
+    state.isFallback = false;
+    state.fallbackReason = null;
+
+    saveGithubCache();
+    hideFallbackBanner();
 
     renderMetrics();
     renderCommitTable();
@@ -1840,10 +1895,33 @@ async function loadGithubLive(force = false) {
     setLivePill("Live · GitHub API", "is-live");
   } catch (err) {
     console.error(err);
-    setLivePill("GitHub API unavailable (rate limit or network)", "is-error");
-    const body = document.querySelector("#commitTable tbody");
-    if (body && !state.commits.length) {
-      body.innerHTML = `<tr><td colspan="4">${escapeHtml(err.message || String(err))}</td></tr>`;
+    const isRateLimit = /403|rate.?limit|429/i.test(err.message || "");
+    const cached = loadGithubCache();
+
+    if (cached?.cachedState) {
+      Object.assign(state, cached.cachedState);
+      state.isFallback = true;
+      const ageMin = Math.round((Date.now() - cached.timestamp) / 60000);
+      const reason = isRateLimit
+        ? `GitHub API rate limit exceeded. Showing cached data from ${ageMin} minute(s) ago.`
+        : `Network error: ${err.message?.slice(0, 120)}. Showing cached data from ${ageMin} minute(s) ago.`;
+      state.fallbackReason = reason;
+      setLivePill(`\u26a0 Fallback data* \u00b7 cached ${ageMin}m ago`, "is-error");
+      showFallbackBanner(reason);
+      renderMetrics();
+      renderCommitTable();
+      renderHeatmap();
+    } else {
+      setLivePill(isRateLimit ? "GitHub rate limit \u2014 no cache available" : "GitHub API unavailable (network error)", "is-error");
+      const body = document.querySelector("#commitTable tbody");
+      if (body) {
+        body.innerHTML = `<tr><td colspan="4">${escapeHtml(err.message || String(err))}</td></tr>`;
+      }
+      showFallbackBanner(
+        isRateLimit
+          ? "GitHub API rate limit exceeded. No cached data is available yet. Reload after a few minutes."
+          : `GitHub API unavailable: ${err.message?.slice(0, 200) || "Network error"}`
+      );
     }
   } finally {
     loading = false;
