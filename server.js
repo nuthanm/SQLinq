@@ -93,6 +93,70 @@ async function loadLatestQualityFromDb() {
   };
 }
 
+function summarizeConversionEvent(row, index) {
+  const payload = row.payload || {};
+  const sqlText = String(payload.sql || payload.message || '').trim();
+  const firstLine = sqlText.split(/\r?\n/).find(Boolean) || '';
+  const displayName = firstLine ? firstLine.slice(0, 72) : `Conversion event ${index + 1}`;
+  const area = payload.connectivityMode
+    ? `${payload.connectivityMode} connectivity`
+    : row.connectivity_mode || 'Live conversion';
+
+  return {
+    id: payload.queryId || `E${String(row.id).padStart(4, '0')}`,
+    name: displayName,
+    area,
+    parseStatus: row.parse_status,
+    convertStatus: row.convert_status,
+    correctness: Number(row.correctness || 0),
+    exactMatch: Boolean(row.exact_match),
+    timeMs: Number(row.time_ms || 0),
+    status: Boolean(row.exact_match) ? 'Exact' : (row.convert_status === 'Partial' ? 'Partial' : 'Failed'),
+    issue: row.issue_ref || null,
+  };
+}
+
+async function loadLatestConversionEventsFromDb() {
+  if (!pool) return null;
+
+  const res = await pool.query(
+    `SELECT id, source, connectivity_mode, parse_status, convert_status, correctness,
+            exact_match, time_ms, issue_ref, payload, created_at
+     FROM conversion_events
+     ORDER BY created_at DESC
+     LIMIT 50`
+  );
+
+  if (!res.rows.length) return null;
+
+  const rows = res.rows;
+  const total = rows.length;
+  const exactMatches = rows.filter((row) => row.exact_match).length;
+  const failed = rows.filter((row) => row.convert_status === 'Fail').length;
+  const partial = rows.filter((row) => row.convert_status === 'Partial').length;
+  const correctnessAvg = rows.reduce((sum, row) => sum + Number(row.correctness || 0), 0) / total;
+  const avgTimeMs = rows.reduce((sum, row) => sum + Number(row.time_ms || 0), 0) / total;
+
+  return {
+    generatedAt: rows[0].created_at,
+    suiteVersion: 'live-events',
+    releaseTarget: 'database',
+    totals: {
+      totalQueries: total,
+      exactMatches,
+      failed,
+      partial,
+      avgCorrectness: Number(correctnessAvg.toFixed(2)),
+      avgTimeMs: Number(avgTimeMs.toFixed(2)),
+      medianTimeMs: null,
+      p95TimeMs: null,
+    },
+    queries: rows.map((row, index) => summarizeConversionEvent(row, index)),
+    source: 'conversion-events',
+    message: null,
+  };
+}
+
 async function loadLatestQualityFromFile() {
   const p = path.join(root, "data", "quality-report.json");
   try {
@@ -141,6 +205,50 @@ app.get("/api/dashboard/quality", async (_req, res) => {
     return res.status(500).json({
       ...dashSummary(),
       source: "error",
+      message: err.message,
+    });
+  }
+});
+
+app.get("/api/dashboard/conversion-events", async (_req, res) => {
+  try {
+    const eventReport = await loadLatestConversionEventsFromDb();
+    if (eventReport) return res.json(eventReport);
+    return res.json({
+      generatedAt: null,
+      suiteVersion: null,
+      releaseTarget: null,
+      totals: {
+        totalQueries: 0,
+        exactMatches: 0,
+        failed: 0,
+        partial: 0,
+        avgCorrectness: 0,
+        avgTimeMs: 0,
+        medianTimeMs: null,
+        p95TimeMs: null,
+      },
+      queries: [],
+      source: 'conversion-events',
+      message: 'No conversion events are available yet.',
+    });
+  } catch (err) {
+    return res.status(500).json({
+      generatedAt: null,
+      suiteVersion: null,
+      releaseTarget: null,
+      totals: {
+        totalQueries: 0,
+        exactMatches: 0,
+        failed: 0,
+        partial: 0,
+        avgCorrectness: 0,
+        avgTimeMs: 0,
+        medianTimeMs: null,
+        p95TimeMs: null,
+      },
+      queries: [],
+      source: 'error',
       message: err.message,
     });
   }

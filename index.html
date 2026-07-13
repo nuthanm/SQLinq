@@ -361,7 +361,7 @@
       <div class="shell stats-grid">
         <article class="stat-block">
           <h2>Conversion quality</h2>
-          <p class="stat-note">Measured from the regression query suite and updated each release.</p>
+          <p class="stat-note">Measured from live conversion events when available, otherwise from the regression query suite.</p>
           <ul>
             <li><span>Correctness score</span><strong id="qaCorrectnessPct">—</strong></li>
             <li><span>Exact matches</span><strong id="qaExactMatches">—</strong></li>
@@ -400,7 +400,7 @@
       <div class="shell panel">
         <div class="panel-head">
           <h2>Per-query conversion trust report</h2>
-          <span class="live-pill is-live" id="qaSuitePill">Regression suite snapshot</span>
+          <span class="live-pill is-live" id="qaSuitePill">Live conversion snapshot</span>
         </div>
         <div class="table-wrap">
           <table class="data-table" id="qaTable">
@@ -421,8 +421,8 @@
             </tbody>
           </table>
         </div>
-        <p class="caption" id="qaCaption">Every failed query is linked to an issue and scheduled in upcoming releases.</p>
-        <p class="caption">Confidence model: 55% correctness score + 35% exact-match rate + 10% failure-rate stability factor. Failed or partial queries are always issue-linked before release sign-off.</p>
+        <p class="caption" id="qaCaption">Live conversion events are stored in the backend and surfaced here when telemetry is enabled.</p>
+        <p class="caption">Confidence model: 55% correctness score + 35% exact-match rate + 10% failure-rate stability factor. Failed or partial conversions are always issue-linked before release sign-off.</p>
       </div>
     </section>
 

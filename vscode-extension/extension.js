@@ -141,6 +141,9 @@ async function convertSelectionDirect(editor, target = 'method') {
     vscode.window.showErrorMessage(result.error);
     await sendConversionEvent({
       connectivityMode: 'without',
+      sql: sqlText,
+      target,
+      output: '',
       parseStatus: 'Fail',
       convertStatus: 'Fail',
       correctness: 0,
@@ -160,6 +163,9 @@ async function convertSelectionDirect(editor, target = 'method') {
   const inferred = inferStatuses(result);
   await sendConversionEvent({
     connectivityMode: 'without',
+    sql: sqlText,
+    target,
+    output: result.output,
     parseStatus: inferred.parseStatus,
     convertStatus: inferred.convertStatus,
     correctness: inferred.correctness,
@@ -372,6 +378,9 @@ function activate(context) {
           const inferred = inferStatuses(result);
           await sendConversionEvent({
             connectivityMode,
+            sql: message.sql || SAMPLE_SQL,
+            target: message.target || 'method',
+            output: result.ok ? result.output : '',
             parseStatus: inferred.parseStatus,
             convertStatus: inferred.convertStatus,
             correctness: inferred.correctness,
@@ -445,6 +454,9 @@ function activate(context) {
       vscode.window.showErrorMessage(result.error);
       await sendConversionEvent({
         connectivityMode: 'without',
+        sql: sqlText,
+        target: target.value,
+        output: '',
         parseStatus: 'Fail',
         convertStatus: 'Fail',
         correctness: 0,
@@ -468,6 +480,9 @@ function activate(context) {
     const inferred = inferStatuses(result);
     await sendConversionEvent({
       connectivityMode: 'without',
+      sql: sqlText,
+      target: target.value,
+      output: result.output,
       parseStatus: inferred.parseStatus,
       convertStatus: inferred.convertStatus,
       correctness: inferred.correctness,

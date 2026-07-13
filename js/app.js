@@ -477,8 +477,18 @@ function renderQualityDashboard(report) {
 }
 
 async function loadQualityDashboard() {
-  setQualityPill("Loading benchmark report…");
+  setQualityPill("Loading live conversion data…");
   try {
+    const liveRes = await fetch("/api/dashboard/conversion-events", { cache: "no-store" });
+    if (liveRes.ok) {
+      const liveReport = await liveRes.json();
+      if (Array.isArray(liveReport?.queries) && liveReport.queries.length) {
+        renderQualityDashboard(liveReport);
+        setQualityPill("Live conversion events", "live");
+        return;
+      }
+    }
+
     const res = await fetch("/api/dashboard/quality", { cache: "no-store" });
     if (!res.ok) throw new Error(`dashboard quality API unavailable (${res.status})`);
     const report = await res.json();
