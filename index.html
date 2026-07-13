@@ -105,7 +105,7 @@
             <p>Transparent phases so contributors and reviewers know where to plug in.</p>
           </div>
           <ol class="roadmap">
-            <li class="is-now"><strong>Phase 1</strong> — MS SQL Server · VS IDE · VS Code · free</li>
+            <li class="is-now"><strong>Phase 1</strong> — MS SQL Server · VS Code · free</li>
             <li><strong>Phase 2</strong> — PostgreSQL &amp; MySQL dialect packs</li>
             <li><strong>Phase 3</strong> — EF Core projection helpers &amp; Roslyn refactor actions</li>
             <li><strong>Phase 4</strong> — Team policy packs &amp; CI conversion checks</li>
@@ -118,13 +118,59 @@
       <div class="page-hero shell">
         <p class="eyebrow">Developer guide</p>
         <h1>Start converting in under five minutes</h1>
-        <p class="lede">Same flow in Visual Studio and VS Code — select SQL, convert, inspect plan, accept LINQ. Editor-specific polish comes later; the core flow stays shared.</p>
+        <p class="lede">Phase 1 is VS Code first — select SQL, convert, inspect plan, accept LINQ. Editor-specific polish and other hosts come later; the core flow stays shared.</p>
+      </div>
+      <div class="shell install-shell">
+        <div class="install-tabs" role="tablist" aria-label="Installation options">
+          <button type="button" role="tab" class="install-tab is-active" aria-selected="true" data-install="vscode">VS Code</button>
+          <button type="button" role="tab" class="install-tab" aria-selected="false" data-install="visualstudio">VS IDE</button>
+          <button type="button" role="tab" class="install-tab" aria-selected="false" data-install="jetbrains">JetBrains</button>
+        </div>
+        <div class="install-panels">
+          <article class="install-panel is-active" data-install-panel="vscode" role="tabpanel">
+            <div class="install-head">
+              <h2>VS Code</h2>
+              <span class="support-pill is-live">Supported now</span>
+            </div>
+            <p>Install from the VS Code Marketplace, open a SQL file, and launch the conversion popup from the command palette or keyboard shortcut.</p>
+            <ul>
+              <li>Best for lightweight SQL to LINQ conversion demos.</li>
+              <li>Uses the same shared conversion core as Visual Studio.</li>
+              <li>Works with the free, distraction-free extension flow.</li>
+            </ul>
+          </article>
+          <article class="install-panel" data-install-panel="visualstudio" role="tabpanel" hidden>
+            <div class="install-head">
+              <h2>Visual Studio</h2>
+              <span class="support-pill is-muted">Not in Phase 1</span>
+            </div>
+            <p>Visual Studio stays in the roadmap, but Phase 1 is being kept narrow so the VS Code experience can ship first.</p>
+            <ul>
+              <li>Later host integration, not part of the first public release.</li>
+              <li>Will reuse the same conversion core and plan language.</li>
+              <li>Shown here to make the supported scope explicit to visitors.</li>
+            </ul>
+          </article>
+          <article class="install-panel" data-install-panel="jetbrains" role="tabpanel" hidden>
+            <div class="install-head">
+              <h2>JetBrains</h2>
+              <span class="support-pill is-muted">Not in Phase 1</span>
+            </div>
+            <p>JetBrains support is intentionally deferred. The shared converter core is being designed so a future plugin can join without changing the rewrite engine.</p>
+            <ul>
+              <li>Not supported in the current release target.</li>
+              <li>Tracked as future host integration work.</li>
+              <li>Keep the shared core extensible before adding new IDE shells.</li>
+            </ul>
+          </article>
+        </div>
+        <p class="install-note">Phase 1 ships for VS Code only. Visual Studio and JetBrains are shown as future host targets so visitors can see the roadmap clearly.</p>
       </div>
       <div class="shell steps">
         <article class="step">
           <span class="step-n">01</span>
           <h2>Install</h2>
-          <p>From Visual Studio Marketplace or VS Code Marketplace search for <strong data-bind="productName"></strong>.</p>
+          <p>From the VS Code Marketplace search for <strong data-bind="productName"></strong>.</p>
         </article>
         <article class="step">
           <span class="step-n">02</span>
@@ -157,7 +203,8 @@
       <div class="page-hero shell">
         <p class="eyebrow">Behind the development</p>
         <h1>Live GitHub progress</h1>
-        <p class="lede">Stars, forks, open issues, and a live commit grid pulled from the public repository — so anyone can watch the effort in real time.</p>
+        <p class="lede">Stars, forks, pull requests, open issues, and a live commit grid pulled from the public repository — so anyone can watch the effort in real time.</p>
+        <p class="page-note">Since <time id="liveSinceLabel" datetime=""></time> · public repo snapshot with live GitHub counts</p>
       </div>
 
       <div class="shell metrics" id="liveMetrics">
@@ -168,6 +215,10 @@
         <div class="metric">
           <span class="metric-value" id="statForks">—</span>
           <span class="metric-label">Forks</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" id="statPullRequests">—</span>
+          <span class="metric-label">Open pull requests</span>
         </div>
         <div class="metric">
           <span class="metric-value" id="statIssues">—</span>
@@ -303,7 +354,7 @@
       <div class="page-hero shell ext-hero">
         <p class="eyebrow">IDE experience</p>
         <h1>Extension prototype</h1>
-        <p class="lede">Distraction-free conversion surface — extensible panels, no ads, no upsell chrome. Shared UX now; per-editor polish later.</p>
+        <p class="lede">Distraction-free conversion surface — extensible panels, no ads, no upsell chrome. Phase 1 focuses on VS Code with a simple SQL Server conversion flow.</p>
         <div class="ext-tabs" role="tablist" aria-label="Extension panels">
           <button type="button" role="tab" class="ext-tab is-active" aria-selected="true" data-panel="convert">1. Conversion</button>
           <button type="button" role="tab" class="ext-tab" aria-selected="false" data-panel="plan">2. Execution plan</button>
@@ -317,7 +368,7 @@
         <div class="ide-chrome" aria-hidden="true">
           <div class="ide-titlebar">
             <span class="ide-dots"><i></i><i></i><i></i></span>
-            <span class="ide-title"><span data-bind="productName"></span> — Visual Studio / VS Code</span>
+            <span class="ide-title"><span data-bind="productName"></span> — VS Code Phase 1</span>
           </div>
           <div class="ide-body">
             <aside class="ide-activity">
@@ -326,7 +377,7 @@
             <aside class="ide-sidebar">
               <div class="sb-head">EXPLORER</div>
               <div class="sb-file">OrdersService.cs</div>
-              <div class="sb-file is-active">legacy_orders.sql</div>
+              <div class="sb-file is-active">customers.sql</div>
               <div class="sb-file">CustomerRepo.cs</div>
             </aside>
             <div class="ide-main">
@@ -359,21 +410,17 @@
                   <div class="split-editors">
                     <div>
                       <div class="ed-label">SQL input</div>
-                      <pre class="ed"><code><span class="tok-kw">WITH</span> Ranked <span class="tok-kw">AS</span> (
-  <span class="tok-kw">SELECT</span> *, <span class="tok-fn">ROW_NUMBER</span>() <span class="tok-kw">OVER</span> (
-    <span class="tok-kw">PARTITION BY</span> CustomerId <span class="tok-kw">ORDER BY</span> OrderDate <span class="tok-kw">DESC</span>
-  ) <span class="tok-kw">AS</span> rn
-  <span class="tok-kw">FROM</span> Orders
-)
-<span class="tok-kw">SELECT</span> * <span class="tok-kw">FROM</span> Ranked <span class="tok-kw">WHERE</span> rn = 1;</code></pre>
+                      <pre class="ed"><code><span class="tok-kw">SELECT</span> CustomerId, Name
+<span class="tok-kw">FROM</span> Customers
+<span class="tok-kw">WHERE</span> IsActive = 1
+<span class="tok-kw">ORDER BY</span> Name;</code></pre>
                     </div>
                     <div>
                       <div class="ed-label">LINQ preview</div>
-                      <pre class="ed linq"><code>orders
-  .<span class="tok-fn">GroupBy</span>(o =&gt; o.CustomerId)
-  .<span class="tok-fn">Select</span>(g =&gt; g
-    .<span class="tok-fn">OrderByDescending</span>(o =&gt; o.OrderDate)
-    .<span class="tok-fn">First</span>());</code></pre>
+                      <pre class="ed linq"><code>customers
+  .<span class="tok-fn">Where</span>(c =&gt; c.IsActive)
+  .<span class="tok-fn">OrderBy</span>(c =&gt; c.Name)
+  .<span class="tok-fn">Select</span>(c =&gt; new { c.CustomerId, c.Name });</code></pre>
                     </div>
                   </div>
                   <footer class="popup-foot">
@@ -390,24 +437,24 @@
                     <div class="plan-title">Estimated execution plan</div>
                     <ul class="plan-nodes">
                       <li class="warn">
-                        <span class="op">Clustered Index Scan</span>
-                        <span class="cost">62%</span>
-                        <span class="obj">Orders</span>
-                      </li>
-                      <li>
-                        <span class="op">Sort</span>
-                        <span class="cost">18%</span>
-                        <span class="obj">OrderDate DESC</span>
-                      </li>
-                      <li>
-                        <span class="op">Segment / Sequence Project</span>
-                        <span class="cost">12%</span>
-                        <span class="obj">ROW_NUMBER</span>
+                        <span class="op">Index Scan</span>
+                        <span class="cost">44%</span>
+                        <span class="obj">Customers</span>
                       </li>
                       <li>
                         <span class="op">Filter</span>
-                        <span class="cost">8%</span>
-                        <span class="obj">rn = 1</span>
+                        <span class="cost">31%</span>
+                        <span class="obj">IsActive = 1</span>
+                      </li>
+                      <li>
+                        <span class="op">Sort</span>
+                        <span class="cost">19%</span>
+                        <span class="obj">Name ASC</span>
+                      </li>
+                      <li>
+                        <span class="op">Project</span>
+                        <span class="cost">6%</span>
+                        <span class="obj">CustomerId, Name</span>
                       </li>
                     </ul>
                   </div>
@@ -415,15 +462,15 @@
                     <div class="plan-title">Suggestions</div>
                     <article class="advice severity-high">
                       <h3>Index opportunity</h3>
-                      <p>Scan on <code>Orders</code> dominates cost. Consider covering index on <code>(CustomerId, OrderDate DESC)</code>.</p>
+                      <p>Scan on <code>Customers</code> dominates cost. Consider an index on <code>(IsActive, Name)</code>.</p>
                     </article>
                     <article class="advice severity-med">
                       <h3>LINQ shape note</h3>
-                      <p><code>GroupBy</code> + <code>First</code> may translate differently under EF Core. Prefer ordered take if provider support is limited.</p>
+                      <p><code>Where</code> + <code>OrderBy</code> is a safe Phase 1 pattern for most LINQ providers.</p>
                     </article>
                     <article class="advice severity-low">
                       <h3>Semantic parity</h3>
-                      <p>Window function rewritten to per-group ordering. Verify NULL handling for <code>OrderDate</code>.</p>
+                      <p>Projected columns match the SQL output exactly. Verify collation-sensitive ordering for <code>Name</code>.</p>
                     </article>
                   </div>
                 </div>
@@ -441,26 +488,25 @@
                   <div class="results-grid">
                     <div>
                       <h3>Output</h3>
-                      <pre class="ed linq"><code><span class="tok-kw">var</span> latestByCustomer = orders
-  .<span class="tok-fn">GroupBy</span>(o =&gt; o.CustomerId)
-  .<span class="tok-fn">Select</span>(g =&gt; g
-    .<span class="tok-fn">OrderByDescending</span>(o =&gt; o.OrderDate)
-    .<span class="tok-fn">First</span>());</code></pre>
+                      <pre class="ed linq"><code><span class="tok-kw">var</span> activeCustomers = customers
+  .<span class="tok-fn">Where</span>(c =&gt; c.IsActive)
+  .<span class="tok-fn">OrderBy</span>(c =&gt; c.Name)
+  .<span class="tok-fn">Select</span>(c =&gt; <span class="tok-kw">new</span> { c.CustomerId, c.Name });</code></pre>
                     </div>
                     <div>
                       <h3>Diagnostics</h3>
                       <ul class="diag-list">
-                        <li class="w">W001 · Window → GroupBy rewrite applied</li>
-                        <li class="w">W014 · EF Core: verify First() translation</li>
-                        <li class="i">I003 · Aliases preserved as anonymous members</li>
+                        <li class="w">W001 · Filter + order pipeline applied</li>
+                        <li class="w">W014 · Verify Name ordering matches SQL collation</li>
+                        <li class="i">I003 · Projection preserved as anonymous members</li>
                       </ul>
                       <h3 class="mt">Sample rows (optional connection)</h3>
                       <table class="mini-table">
-                        <thead><tr><th>CustomerId</th><th>OrderId</th><th>OrderDate</th></tr></thead>
+                        <thead><tr><th>CustomerId</th><th>Name</th><th>IsActive</th></tr></thead>
                         <tbody>
-                          <tr><td>1042</td><td>88921</td><td>2026-06-02</td></tr>
-                          <tr><td>1088</td><td>89004</td><td>2026-06-11</td></tr>
-                          <tr><td>1101</td><td>88770</td><td>2026-05-28</td></tr>
+                          <tr><td>1042</td><td>Acme Ltd</td><td>1</td></tr>
+                          <tr><td>1088</td><td>Blue Peak</td><td>1</td></tr>
+                          <tr><td>1101</td><td>Northwind</td><td>1</td></tr>
                         </tbody>
                       </table>
                     </div>

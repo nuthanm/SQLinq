@@ -400,6 +400,104 @@ pre {
   padding: 4rem 0;
 }
 
+.page-note {
+  margin: 0.1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.install-shell {
+  margin-top: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.install-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.install-tab {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.5rem 0.95rem;
+  cursor: pointer;
+}
+
+.install-tab.is-active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.install-panels {
+  display: grid;
+  gap: 1rem;
+}
+
+.install-panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.1rem 1.2rem;
+}
+
+.install-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.45rem;
+}
+
+.install-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.install-panel p {
+  margin: 0 0 0.75rem;
+  color: var(--ink-soft);
+}
+
+.install-panel ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--ink-soft);
+}
+
+.install-panel li {
+  margin-bottom: 0.35rem;
+}
+
+.install-note {
+  margin: 0.75rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.support-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.support-pill.is-live {
+  color: #0d7a4f;
+  background: #d8f3e7;
+}
+
+.support-pill.is-muted {
+  color: var(--ink-soft);
+  background: var(--paper-2);
+}
+
 .section-muted {
   background: var(--paper-2);
   border-block: 1px solid var(--line);
@@ -556,7 +654,7 @@ kbd {
 /* Transparency */
 .metrics {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1rem;
   margin-bottom: 2rem;
 }
@@ -586,6 +684,11 @@ kbd {
   display: block;
   margin-top: 0.25rem;
   font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.metric-since {
+  font-size: 0.8rem;
   color: var(--ink-soft);
 }
 
@@ -633,6 +736,14 @@ kbd {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
+}
+
+.metric-value {
+  display: inline-block;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--accent-deep);
 }
 
 .data-table th,
@@ -1291,6 +1402,10 @@ kbd {
     gap: 1.25rem;
   }
 
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .ide-body {
     grid-template-columns: 1fr;
   }
@@ -1323,6 +1438,12 @@ kbd {
 
   .nav-cta {
     margin-left: 0;
+  }
+
+  .install-head,
+  .panel-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

@@ -10,6 +10,7 @@ const state = {
   repo: null,
   issuesOpen: null,
   issuesClosed: null,
+  pullRequests: null,
 };
 
 function applyBranding() {
@@ -27,6 +28,12 @@ function applyBranding() {
   if (since) {
     since.dateTime = cfg.sinceDate;
     since.textContent = formatDisplayDate(cfg.sinceDate);
+  }
+
+  const liveSince = document.getElementById("liveSinceLabel");
+  if (liveSince) {
+    liveSince.dateTime = cfg.sinceDate;
+    liveSince.textContent = formatDisplayDate(cfg.sinceDate);
   }
 
   const sinceInput = document.getElementById("sinceDate");
@@ -111,6 +118,22 @@ document.querySelectorAll(".tree-node").forEach((node) => {
   });
 });
 
+document.querySelectorAll(".install-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    const id = tab.dataset.install;
+    document.querySelectorAll(".install-tab").forEach((btn) => {
+      const on = btn === tab;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", String(on));
+    });
+    document.querySelectorAll(".install-panel").forEach((panel) => {
+      const on = panel.dataset.installPanel === id;
+      panel.classList.toggle("is-active", on);
+      panel.hidden = !on;
+    });
+  });
+});
+
 async function ghFetch(path) {
   const res = await fetch(`https://api.github.com${path}`, {
     headers: {
@@ -155,11 +178,16 @@ function setLivePill(text, mode) {
 function renderMetrics() {
   const stars = document.getElementById("statStars");
   const forks = document.getElementById("statForks");
+  const pullRequests = document.getElementById("statPullRequests");
   const issues = document.getElementById("statIssues");
   const commits = document.getElementById("statCommits");
   if (state.repo) {
     if (stars) stars.textContent = Number(state.repo.stargazers_count).toLocaleString();
     if (forks) forks.textContent = Number(state.repo.forks_count).toLocaleString();
+  }
+  if (pullRequests) {
+    pullRequests.textContent =
+      state.pullRequests == null ? "—" : Number(state.pullRequests).toLocaleString();
   }
   if (issues) {
     issues.textContent =
@@ -290,11 +318,15 @@ async function loadGithubLive(force = false) {
       ghFetch(`/search/issues?q=repo:${owner}/${repo}+type:issue+state:open&per_page=1`),
       ghFetch(`/search/issues?q=repo:${owner}/${repo}+type:issue+state:closed&per_page=1`),
     ]);
+    const openPullRequests = await ghFetch(
+      `/search/issues?q=repo:${owner}/${repo}+type:pr+state:open&per_page=1`
+    );
 
     state.repo = repoInfo;
     state.commits = commits;
     state.issuesOpen = openIssues.total_count ?? 0;
     state.issuesClosed = closedIssues.total_count ?? 0;
+    state.pullRequests = openPullRequests.total_count ?? 0;
 
     renderMetrics();
     renderCommitTable();
