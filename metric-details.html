@@ -153,11 +153,22 @@
           <h2>Per-query conversion trust report</h2>
           <span class="live-pill is-live" id="qaSuitePill">Live conversion snapshot</span>
         </div>
+        <div class="qa-filter-bar">
+          <span class="qa-filter-label">Filter:</span>
+          <button type="button" class="filter-btn is-active" data-qa-filter="all">All</button>
+          <button type="button" class="filter-btn" data-qa-filter="parsing-success">Parsing Success</button>
+          <button type="button" class="filter-btn" data-qa-filter="parsing-failure">Parsing Failure</button>
+        </div>
+        <div class="qa-legend">
+          <span class="qa-legend-item"><span class="qa-pill qa-good">Parsing Success</span> Exact match</span>
+          <span class="qa-legend-item"><span class="qa-pill qa-warn">Near match</span> Partial correctness</span>
+          <span class="qa-legend-item"><span class="qa-pill qa-risk">Parsing Failure</span> Conversion failed</span>
+          <span class="qa-legend-item qa-legend-row-risk">&#9632; Row highlight = failed row</span>
+        </div>
         <div class="table-wrap">
           <table class="data-table" id="qaTable">
             <thead>
               <tr>
-                <th>Query</th>
                 <th>Query type</th>
                 <th>Elements</th>
                 <th>Concept used</th>
@@ -174,7 +185,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="14">Loading quality suite...</td></tr>
+              <tr><td colspan="13">Loading quality suite...</td></tr>
             </tbody>
           </table>
         </div>
@@ -187,12 +198,16 @@
             <div id="qaDbGraph" class="chart-host" role="img" aria-label="Database tag exact-match bar chart"></div>
           </article>
           <article class="segment-card">
-            <h3>Connectivity bar chart</h3>
+            <h3>Parsing Success / Failure</h3>
             <div id="qaConnectivityGraph" class="chart-host" role="img" aria-label="Connectivity exact-match bar chart"></div>
           </article>
           <article class="segment-card">
             <h3>Syntax target bar chart</h3>
             <div id="qaTargetGraph" class="chart-host" role="img" aria-label="Syntax exact-match bar chart"></div>
+          </article>
+          <article class="segment-card">
+            <h3>Issue tracking</h3>
+            <div id="qaIssueTrackingGraph" class="chart-host" role="img" aria-label="Issue tracking Open In Progress Done bar chart"></div>
           </article>
           <article class="segment-card chart-wide">
             <h3>Conversion time trend (line chart)</h3>
@@ -202,6 +217,29 @@
       </div>
       <p class="caption" id="qaCaption">Live conversion events are stored in the backend and surfaced here when telemetry is enabled.</p>
       <p class="caption">Confidence model: 55% correctness score + 35% exact-match rate + 10% failure-rate stability factor.</p>
+    </div>
+
+    <div class="shell panel" id="failureIssuesPanel" hidden>
+      <div class="panel-head">
+        <h2>Failure issues on GitHub</h2>
+        <span class="live-pill is-live" id="failureIssuesPill">From benchmark data</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="failureIssuesTable">
+          <thead>
+            <tr>
+              <th>Query type</th>
+              <th>Parse</th>
+              <th>Convert</th>
+              <th>Status</th>
+              <th>GitHub issue</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5">Loading failure issues...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </main>
 

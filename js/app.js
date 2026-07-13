@@ -10,6 +10,7 @@ const state = {
   repo: null,
   issuesOpen: null,
   issuesClosed: null,
+  issuesInProgress: null,
   pullRequests: null,
 };
 
@@ -209,6 +210,67 @@ function setLivePill(text, mode) {
   if (mode) pill.classList.add(mode);
 }
 
+function renderIssueTrackingGraph(containerId) {
+  const root = document.getElementById(containerId);
+  if (!root) return;
+
+  const openCount = state.issuesOpen ?? 0;
+  const inProgressCount = state.issuesInProgress ?? 0;
+  const doneCount = state.issuesClosed ?? 0;
+
+  if (state.issuesOpen == null && state.issuesClosed == null) {
+    root.innerHTML = '<p class="caption">Loading issue tracking data from GitHub…</p>';
+    return;
+  }
+
+  const groups = [
+    { label: "Open", count: openCount, color: "#2563eb" },
+    { label: "In Progress", count: inProgressCount, color: "#d97706" },
+    { label: "Done", count: doneCount, color: "#0d7a4f" },
+  ];
+
+  const maxCount = Math.max(1, ...groups.map((g) => g.count));
+  const width = 520;
+  const height = 220;
+  const margin = { top: 18, right: 16, bottom: 46, left: 40 };
+  const chartW = width - margin.left - margin.right;
+  const chartH = height - margin.top - margin.bottom;
+  const band = chartW / groups.length;
+  const barW = Math.max(18, band * 0.52);
+
+  const bars = groups.map((g, i) => {
+    const value = g.count;
+    const pct = (value / maxCount);
+    const x = margin.left + i * band + (band - barW) / 2;
+    const h = pct * chartH;
+    const y = margin.top + chartH - h;
+    const cx = margin.left + i * band + band / 2;
+    return `
+      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="${g.color}"></rect>
+      <text class="chart-value" x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle">${value}</text>
+      <text class="chart-label" x="${cx.toFixed(1)}" y="${(height - 22).toFixed(1)}" text-anchor="middle">${escapeHtml(g.label)}</text>
+    `;
+  }).join("");
+
+  const yTicks = [0, Math.ceil(maxCount * 0.25), Math.ceil(maxCount * 0.5), Math.ceil(maxCount * 0.75), maxCount];
+  const grid = yTicks.map((t) => {
+    const y = margin.top + chartH - (t / maxCount) * chartH;
+    return `
+      <line class="chart-grid" x1="${margin.left}" y1="${y.toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${y.toFixed(1)}"></line>
+      <text class="chart-label" x="${(margin.left - 8).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end">${t}</text>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+      ${grid}
+      <line class="chart-axis" x1="${margin.left}" y1="${(margin.top + chartH).toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${(margin.top + chartH).toFixed(1)}"></line>
+      <line class="chart-axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${(margin.top + chartH).toFixed(1)}"></line>
+      ${bars}
+    </svg>
+  `;
+}
+
 function renderMetrics() {
   const stars = document.getElementById("statStars");
   const forks = document.getElementById("statForks");
@@ -244,6 +306,8 @@ function renderMetrics() {
   } else {
     set("bugFixPct", identified === 0 ? "n/a" : "—");
   }
+
+  renderIssueTrackingGraph("qaIssueTrackingGraph");
 }
 
 function renderCommitTable() {
@@ -443,7 +507,7 @@ function normalizeQualityRows(rows) {
     correctness: Number(row.correctness ?? 0),
     exactMatch: Boolean(row.exactMatch),
     timeMs: Number(row.timeMs ?? 0),
-    status: row.status || (row.exactMatch ? "Exact" : "Near match"),
+    status: (() => { const s = row.status || (row.exactMatch ? "Parsing Success" : "Near match"); if (s === "Exact") return "Parsing Success"; if (s === "Failed") return "Parsing Failure"; return s; })(),
     issue: row.issue || null,
   }))
     .map((row) => {
@@ -537,6 +601,35 @@ function summarizeGroups(rows, keySelector) {
     .sort((a, b) => b.total - a.total);
 }
 
+function barColorForKey(key) {
+  const k = String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Parse / conversion status
+  if (k === "parsingfailure" || k === "fail" || k === "failed") return "#c0392b";
+  if (k === "parsingsuccess" || k === "pass" || k === "exact") return "#0d7a4f";
+  if (k === "partial" || k === "nearmatch") return "#d97706";
+  // Issue states
+  if (k === "open") return "#2563eb";
+  if (k === "inprogress") return "#d97706";
+  if (k === "done" || k === "closed") return "#0d7a4f";
+  // Database types
+  if (k === "sqlserver" || k === "mssql") return "#1e40af";
+  if (k === "postgres" || k === "postgresql" || k === "postgress") return "#4f46e5";
+  if (k === "mysql") return "#d97706";
+  if (k === "sqlite") return "#0891b2";
+  // Connectivity
+  if (k === "withoutdb" || k === "without" || k === "withoutdatabase") return "#64748b";
+  if (k === "withdb" || k === "with" || k === "withdatabase") return "#0891b2";
+  // Syntax targets
+  if (k === "methodsyntax" || k === "method") return "#7c3aed";
+  if (k === "querysyntax" || k === "query") return "#2563eb";
+  if (k === "efcore" || k === "ef") return "#0891b2";
+  // Fallback palette
+  const palette = ["#2563eb", "#7c3aed", "#0891b2", "#d97706", "#64748b"];
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) & 0xffff;
+  return palette[hash % palette.length];
+}
+
 function renderGroupTable(tableId, groups, labelSelector) {
   const body = document.querySelector(`#${tableId} tbody`);
   if (!body) return;
@@ -546,15 +639,18 @@ function renderGroupTable(tableId, groups, labelSelector) {
     return;
   }
 
-  body.innerHTML = groups.map((g) => `
+  body.innerHTML = groups.map((g) => {
+    const color = barColorForKey(g.key);
+    return `
     <tr>
-      <td>${escapeHtml(labelSelector(g.key))}</td>
+      <td><span class="color-dot" style="background:${color}"></span>${escapeHtml(labelSelector(g.key))}</td>
       <td>${g.total}</td>
       <td>${g.exactRate.toFixed(1)}%</td>
       <td>${g.avgCorrectness.toFixed(1)}%</td>
       <td>${toMs(g.avgTime)}</td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function renderGroupGraph(containerId, groups, labelSelector) {
@@ -581,8 +677,9 @@ function renderGroupGraph(containerId, groups, labelSelector) {
     const h = (value / 100) * chartH;
     const y = margin.top + chartH - h;
     const cx = margin.left + i * band + band / 2;
+    const color = barColorForKey(g.key);
     return `
-      <rect class="chart-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="4"></rect>
+      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="${color}"></rect>
       <text class="chart-value" x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle">${value.toFixed(1)}%</text>
       <text class="chart-label" x="${cx.toFixed(1)}" y="${(height - 22).toFixed(1)}" text-anchor="middle">${escapeHtml(labelSelector(g.key))}</text>
       <text class="chart-label" x="${cx.toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="middle">${g.total} q</text>
@@ -663,6 +760,67 @@ function renderTimeTrendChart(rows) {
   `;
 }
 
+function renderParseStatusGraph(containerId, rows) {
+  const total = rows.length || 1;
+  const successCount = rows.filter((r) => r.parseStatus === "Pass").length;
+  const failureCount = rows.filter((r) => r.parseStatus === "Fail").length;
+
+  const groups = [
+    { key: "parsing-success", total: successCount, exact: successCount, exactRate: (successCount / total) * 100, avgCorrectness: 0, avgTime: 0 },
+    { key: "parsing-failure", total: failureCount, exact: 0, exactRate: (failureCount / total) * 100, avgCorrectness: 0, avgTime: 0 },
+  ];
+
+  const root = document.getElementById(containerId);
+  if (!root) return;
+
+  if (!rows.length) {
+    root.innerHTML = '<p class="caption">No parse data yet.</p>';
+    return;
+  }
+
+  const width = 520;
+  const height = 220;
+  const margin = { top: 18, right: 16, bottom: 46, left: 34 };
+  const chartW = width - margin.left - margin.right;
+  const chartH = height - margin.top - margin.bottom;
+  const band = chartW / 2;
+  const barW = Math.max(18, band * 0.52);
+
+  const colors = ["#2563eb", "#c0392b"];
+  const bars = groups.map((g, i) => {
+    const value = Math.max(0, Math.min(100, g.exactRate));
+    const x = margin.left + i * band + (band - barW) / 2;
+    const h = (value / 100) * chartH;
+    const y = margin.top + chartH - h;
+    const cx = margin.left + i * band + band / 2;
+    const label = g.key === "parsing-success" ? "Parsing Success" : "Parsing Failure";
+    const color = barColorForKey(g.key);
+    return `
+      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="${color}"></rect>
+      <text class="chart-value" x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle">${value.toFixed(1)}%</text>
+      <text class="chart-label" x="${cx.toFixed(1)}" y="${(height - 22).toFixed(1)}" text-anchor="middle">${escapeHtml(label)}</text>
+      <text class="chart-label" x="${cx.toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="middle">${g.total} q</text>
+    `;
+  }).join("");
+
+  const grid = [0, 25, 50, 75, 100].map((t) => {
+    const y = margin.top + chartH - (t / 100) * chartH;
+    return `
+      <line class="chart-grid" x1="${margin.left}" y1="${y.toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${y.toFixed(1)}"></line>
+      <text class="chart-label" x="${(margin.left - 8).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end">${t}</text>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+      ${grid}
+      <line class="chart-axis" x1="${margin.left}" y1="${(margin.top + chartH).toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${(margin.top + chartH).toFixed(1)}"></line>
+      <line class="chart-axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${(margin.top + chartH).toFixed(1)}"></line>
+      ${bars}
+    </svg>
+  `;
+}
+
 function renderSegmentedMetrics(rows) {
   const byDb = ensureDefaultDatabaseGroups(summarizeGroups(rows, (row) => row.databaseType));
   const byConnectivity = summarizeGroups(rows, (row) => row.connectivityMode);
@@ -673,9 +831,95 @@ function renderSegmentedMetrics(rows) {
   renderGroupTable("qaTargetTable", byTarget, targetLabel);
 
   renderGroupGraph("qaDbGraph", byDb, databaseLabel);
-  renderGroupGraph("qaConnectivityGraph", byConnectivity, connectivityLabel);
+  renderParseStatusGraph("qaConnectivityGraph", rows);
   renderGroupGraph("qaTargetGraph", byTarget, targetLabel);
   renderTimeTrendChart(rows);
+}
+
+let qaAllRows = [];
+
+function renderQaRows(rows) {
+  const body = document.querySelector("#qaTable tbody");
+  if (!body) return;
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="13">No matching rows.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows
+    .map((row) => {
+      const issueNo = extractIssueNumber(row.issue);
+      const issueCell = issueNo && cfg?.githubUrl
+        ? `<a href="${cfg.githubUrl}/issues/${issueNo}" target="_blank" rel="noopener">${escapeHtml(row.issue)}</a>`
+        : row.issue
+          ? escapeHtml(row.issue)
+          : "\u2014";
+      const isFailed = row.status === "Parsing Failure" || row.convertStatus === "Fail";
+      const statusClass = row.status === "Parsing Success" ? "qa-good" : row.status === "Near match" ? "qa-warn" : "qa-risk";
+      const rowClass = isFailed ? ' class="qa-row-risk"' : "";
+      return `<tr${rowClass}>
+          <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
+          <td>${escapeHtml((row.queryElements || ["SELECT"]).join(", "))}</td>
+          <td>${escapeHtml(row.concept || conceptLabel(row.target, row.connectivityMode))}</td>
+          <td>${escapeHtml(targetLabel(row.target))}</td>
+          <td>${escapeHtml(connectivityLabel(row.connectivityMode))}</td>
+          <td>${escapeHtml(databaseLabel(row.databaseType))}</td>
+          <td>${escapeHtml(row.parseStatus)}</td>
+          <td>${escapeHtml(row.convertStatus)}</td>
+          <td>${row.correctness.toFixed(1)}%</td>
+          <td>${row.exactMatch ? "Yes" : "No"}</td>
+          <td>${toMs(row.timeMs)}</td>
+          <td><span class="qa-pill ${statusClass}">${escapeHtml(row.status)}</span></td>
+          <td>${issueCell}</td>
+        </tr>`;
+    })
+    .join("");
+}
+
+function setupQaFilter() {
+  document.querySelectorAll("[data-qa-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-qa-filter]").forEach((b) => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      const filter = btn.getAttribute("data-qa-filter");
+      if (filter === "parsing-success") {
+        renderQaRows(qaAllRows.filter((r) => r.parseStatus === "Pass"));
+      } else if (filter === "parsing-failure") {
+        renderQaRows(qaAllRows.filter((r) => r.parseStatus === "Fail" || r.status === "Parsing Failure"));
+      } else {
+        renderQaRows(qaAllRows);
+      }
+    });
+  });
+}
+
+function renderFailureIssues(failures) {
+  const panel = document.getElementById("failureIssuesPanel");
+  const tbody = document.querySelector("#failureIssuesTable tbody");
+  if (!panel || !tbody) return;
+
+  if (!failures.length) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  tbody.innerHTML = failures
+    .map((row) => {
+      const issueNo = extractIssueNumber(row.issue);
+      const issueCell = issueNo && cfg?.githubUrl
+        ? `<a href="${cfg.githubUrl}/issues/${issueNo}" target="_blank" rel="noopener">#${issueNo} &rarr; ${escapeHtml(cfg.githubUrl.split("/").pop())}</a>`
+        : row.issue
+          ? escapeHtml(row.issue)
+          : `<a href="${cfg?.githubUrl || "#"}/issues/new" target="_blank" rel="noopener" class="qa-no-issue">No issue &mdash; create one</a>`;
+      return `<tr class="qa-row-risk">
+          <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
+          <td>${escapeHtml(row.parseStatus)}</td>
+          <td>${escapeHtml(row.convertStatus)}</td>
+          <td><span class="qa-pill qa-risk">${escapeHtml(row.status)}</span></td>
+          <td>${issueCell}</td>
+        </tr>`;
+    })
+    .join("");
 }
 
 function setQualityPill(text, mode = "live") {
@@ -717,8 +961,10 @@ function renderQualityDashboard(report) {
 
     const body = document.querySelector("#qaTable tbody");
     if (body) {
-      body.innerHTML = '<tr><td colspan="14">- No benchmark data published yet. Run benchmark pipeline and import report.</td></tr>';
+      body.innerHTML = '<tr><td colspan="13">- No benchmark data published yet. Run benchmark pipeline and import report.</td></tr>';
     }
+    const panel = document.getElementById("failureIssuesPanel");
+    if (panel) panel.hidden = true;
     renderSegmentedMetrics([]);
     const caption = document.getElementById("qaCaption");
     if (caption) {
@@ -729,11 +975,11 @@ function renderQualityDashboard(report) {
 
   const total = rows.length;
   const exact = rows.filter((row) => row.exactMatch).length;
-  const failures = rows.filter((row) => row.convertStatus === "Fail" || row.status === "Failed");
+  const failures = rows.filter((row) => row.convertStatus === "Fail" || row.status === "Parsing Failure");
   const parserFailures = rows.filter((row) => row.parseStatus === "Fail");
   const partials = rows.filter((row) => row.parseStatus === "Partial" || row.convertStatus === "Partial" || row.status === "Partial");
   const edgeRows = rows.filter((row) => isEdgeCaseRow(row));
-  const edgeFailures = edgeRows.filter((row) => row.convertStatus === "Fail" || row.status === "Failed");
+  const edgeFailures = edgeRows.filter((row) => row.convertStatus === "Fail" || row.status === "Parsing Failure");
   const issueLinked = failures.filter((row) => row.issue).length;
   const correctnessAvg = rows.reduce((sum, row) => sum + row.correctness, 0) / total;
   const exactRate = (exact / total) * 100;
@@ -769,36 +1015,10 @@ function renderQualityDashboard(report) {
   set("qaEdgeFailures", `${edgeFailures.length}/${edgeRows.length || 0}`);
   set("qaEdgeFixRate", edgeRows.length ? `${(((edgeRows.length - edgeFailures.length) / edgeRows.length) * 100).toFixed(1)}%` : "n/a");
 
-  const body = document.querySelector("#qaTable tbody");
-  if (body) {
-    body.innerHTML = rows
-      .map((row) => {
-        const issueNo = extractIssueNumber(row.issue);
-        const issueCell = issueNo && cfg?.githubUrl
-          ? `<a href="${cfg.githubUrl}/issues/${issueNo}" target="_blank" rel="noopener">${escapeHtml(row.issue)}</a>`
-          : row.issue
-            ? escapeHtml(row.issue)
-            : "—";
-        const statusClass = row.status === "Exact" ? "qa-good" : row.status === "Near match" ? "qa-warn" : "qa-risk";
-        return `<tr>
-          <td>${escapeHtml(row.id)} · ${escapeHtml(row.name)}</td>
-          <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
-          <td>${escapeHtml((row.queryElements || ["SELECT"]).join(", "))}</td>
-          <td>${escapeHtml(row.concept || conceptLabel(row.target, row.connectivityMode))}</td>
-          <td>${escapeHtml(targetLabel(row.target))}</td>
-          <td>${escapeHtml(connectivityLabel(row.connectivityMode))}</td>
-          <td>${escapeHtml(databaseLabel(row.databaseType))}</td>
-          <td>${escapeHtml(row.parseStatus)}</td>
-          <td>${escapeHtml(row.convertStatus)}</td>
-          <td>${row.correctness.toFixed(1)}%</td>
-          <td>${row.exactMatch ? "Yes" : "No"}</td>
-          <td>${toMs(row.timeMs)}</td>
-          <td><span class="qa-pill ${statusClass}">${escapeHtml(row.status)}</span></td>
-          <td>${issueCell}</td>
-        </tr>`;
-      })
-      .join("");
-  }
+  qaAllRows = rows;
+  renderQaRows(rows);
+  renderFailureIssues(failures);
+  setupQaFilter();
 
   renderSegmentedMetrics(rows);
 
@@ -1596,11 +1816,12 @@ async function loadGithubLive(force = false) {
     const owner = cfg.githubOwner;
     const repo = cfg.githubRepo;
 
-    const [repoInfo, commits, openIssues, closedIssues] = await Promise.all([
+    const [repoInfo, commits, openIssues, closedIssues, inProgressIssues] = await Promise.all([
       ghFetch(`/repos/${owner}/${repo}`),
       loadAllCommits(since),
       ghFetch(`/search/issues?q=repo:${owner}/${repo}+type:issue+state:open&per_page=1`),
       ghFetch(`/search/issues?q=repo:${owner}/${repo}+type:issue+state:closed&per_page=1`),
+      ghFetch(`/search/issues?q=repo:${owner}/${repo}+type:issue+state:open+label:in-progress&per_page=1`).catch(() => ({ total_count: 0 })),
     ]);
     const openPullRequests = await ghFetch(
       `/search/issues?q=repo:${owner}/${repo}+type:pr+state:open&per_page=1`
@@ -1610,6 +1831,7 @@ async function loadGithubLive(force = false) {
     state.commits = commits;
     state.issuesOpen = openIssues.total_count ?? 0;
     state.issuesClosed = closedIssues.total_count ?? 0;
+    state.issuesInProgress = inProgressIssues.total_count ?? 0;
     state.pullRequests = openPullRequests.total_count ?? 0;
 
     renderMetrics();
