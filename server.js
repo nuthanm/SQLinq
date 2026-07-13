@@ -24,6 +24,24 @@ const CLEAN_ROUTES = {
 };
 
 app.use(express.json({ limit: "1mb" }));
+
+// Canonicalize legacy .html and extension URLs before static files are served.
+app.get("/:page.html", (req, res, next) => {
+  const page = `/${req.params.page.toLowerCase()}`;
+  if (Object.prototype.hasOwnProperty.call(CLEAN_ROUTES, page)) {
+    return res.redirect(301, page);
+  }
+  return next();
+});
+
+app.get("/extension", (_req, res) => {
+  res.redirect(301, "/#extension");
+});
+
+app.get("/extension/vscode", (_req, res) => {
+  res.redirect(301, "/#extension");
+});
+
 app.use(express.static(root));
 
 Object.entries(CLEAN_ROUTES).forEach(([route, file]) => {
@@ -31,14 +49,6 @@ Object.entries(CLEAN_ROUTES).forEach(([route, file]) => {
   app.get(route, (_req, res) => {
     res.sendFile(path.join(root, file));
   });
-});
-
-app.get("/:page.html", (req, res, next) => {
-  const page = `/${req.params.page.toLowerCase()}`;
-  if (Object.prototype.hasOwnProperty.call(CLEAN_ROUTES, page)) {
-    return res.redirect(301, page);
-  }
-  return next();
 });
 
 function dbEnabled() {

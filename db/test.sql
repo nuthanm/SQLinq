@@ -2,8 +2,8 @@
 -- These stay within the current single-table SELECT shapes the parser can convert.
 
 -- 1. Basic projection
-customers
-  .Select(c => new { c.CustomerId, c.Name });
+SELECT CustomerId, Name
+FROM Customers;
 
 -- 2. Select all columns
 SELECT *
