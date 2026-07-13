@@ -360,6 +360,53 @@ function getConfidenceBand(score) {
   return "Low";
 }
 
+function parseRecognizedElements(text) {
+  const match = String(text || "").match(/Recognized\s+([^\.]+)/i);
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((part) => part.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function normalizeElements(input) {
+  const list = Array.isArray(input)
+    ? input
+    : String(input || "")
+        .split(",")
+        .map((part) => part.trim());
+  const cleaned = list
+    .map((part) => String(part || "").replace(/^clauses\s*:\s*/i, "").trim().toUpperCase())
+    .filter(Boolean);
+  return [...new Set(cleaned)];
+}
+
+function inferQueryType(elements) {
+  const set = new Set(elements || []);
+  if (set.has("JOIN")) return "Join query";
+  if (set.has("GROUP BY")) return "Aggregate query";
+  if (set.has("WHERE") && set.has("ORDER BY")) return "Filtered + sorted SELECT";
+  if (set.has("WHERE")) return "Filtered SELECT";
+  if (set.has("ORDER BY")) return "Sorted SELECT";
+  return "Basic SELECT";
+}
+
+function conceptLabel(target, connectivityMode) {
+  if (target === "query") {
+    return connectivityMode === "with"
+      ? "LINQ query comprehension + DB connectivity"
+      : "LINQ query comprehension (offline)";
+  }
+  if (target === "ef") {
+    return connectivityMode === "with"
+      ? "EF Core IQueryable pipeline + DB connectivity"
+      : "EF Core IQueryable pipeline (offline)";
+  }
+  return connectivityMode === "with"
+    ? "LINQ method chain + DB connectivity"
+    : "LINQ method chain (offline)";
+}
+
 function normalizeQualityRows(rows) {
   return rows
     .filter((row) => !Boolean(row.isTest) && !String(row.name || "").toLowerCase().includes("fmanual"))
@@ -370,6 +417,9 @@ function normalizeQualityRows(rows) {
     target: String(row.target || "method").toLowerCase(),
     connectivityMode: String(row.connectivityMode || "without").toLowerCase(),
     databaseType: String(row.databaseType || "without").toLowerCase(),
+    queryType: row.queryType || null,
+    queryElements: row.queryElements || row.clauseProfile || null,
+    concept: row.concept || row.conversionConcept || null,
     createdAt: row.createdAt || null,
     parseStatus: row.parseStatus || "Pass",
     convertStatus: row.convertStatus || "Pass",
@@ -378,7 +428,18 @@ function normalizeQualityRows(rows) {
     timeMs: Number(row.timeMs ?? 0),
     status: row.status || (row.exactMatch ? "Exact" : "Near match"),
     issue: row.issue || null,
-  }));
+  }))
+    .map((row) => {
+      const elements = normalizeElements(
+        row.queryElements || parseRecognizedElements(row.status) || parseRecognizedElements(row.name)
+      );
+      return {
+        ...row,
+        queryElements: elements.length ? elements : ["SELECT"],
+        queryType: row.queryType || inferQueryType(elements),
+        concept: row.concept || conceptLabel(row.target, row.connectivityMode),
+      };
+    });
 }
 
 function targetLabel(target) {
@@ -600,7 +661,7 @@ function renderQualityDashboard(report) {
 
     const body = document.querySelector("#qaTable tbody");
     if (body) {
-      body.innerHTML = '<tr><td colspan="11">- No benchmark data published yet. Run benchmark pipeline and import report.</td></tr>';
+      body.innerHTML = '<tr><td colspan="14">- No benchmark data published yet. Run benchmark pipeline and import report.</td></tr>';
     }
     renderSegmentedMetrics([]);
     const caption = document.getElementById("qaCaption");
@@ -660,6 +721,9 @@ function renderQualityDashboard(report) {
         const statusClass = row.status === "Exact" ? "qa-good" : row.status === "Near match" ? "qa-warn" : "qa-risk";
         return `<tr>
           <td>${escapeHtml(row.id)} · ${escapeHtml(row.name)}</td>
+          <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
+          <td>${escapeHtml((row.queryElements || ["SELECT"]).join(", "))}</td>
+          <td>${escapeHtml(row.concept || conceptLabel(row.target, row.connectivityMode))}</td>
           <td>${escapeHtml(targetLabel(row.target))}</td>
           <td>${escapeHtml(connectivityLabel(row.connectivityMode))}</td>
           <td>${escapeHtml(databaseLabel(row.databaseType))}</td>

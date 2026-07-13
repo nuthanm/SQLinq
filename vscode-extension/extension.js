@@ -275,6 +275,8 @@ async function convertSelectionDirect(editor, target = 'method') {
   });
   if (sync.ok) {
     vscode.window.showInformationMessage('Telemetry synced to dashboard.');
+  } else {
+    vscode.window.showWarningMessage(`Telemetry sync failed: ${sync.reason}`);
   }
 }
 
@@ -604,6 +606,8 @@ function activate(context) {
     });
     if (sync.ok) {
       vscode.window.showInformationMessage('Telemetry synced to dashboard.');
+    } else {
+      vscode.window.showWarningMessage(`Telemetry sync failed: ${sync.reason}`);
     }
   });
 

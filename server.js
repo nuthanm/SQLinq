@@ -132,22 +132,48 @@ async function loadLatestQualityFromDb() {
   };
 }
 
+function deriveQueryType(clauses) {
+  const set = new Set((clauses || []).map((c) => String(c).toUpperCase()));
+  const has = (name) => set.has(name);
+  if (has('JOIN')) return 'Join query';
+  if (has('GROUP BY')) return 'Aggregate query';
+  if (has('WHERE') && has('ORDER BY')) return 'Filtered + sorted SELECT';
+  if (has('WHERE')) return 'Filtered SELECT';
+  if (has('ORDER BY')) return 'Sorted SELECT';
+  return 'Basic SELECT';
+}
+
+function targetConceptLabel(target) {
+  if (target === 'query') return 'LINQ query comprehension';
+  if (target === 'ef') return 'EF Core IQueryable pipeline';
+  return 'LINQ method chain';
+}
+
 function summarizeConversionEvent(row, index) {
   const payload = row.payload || {};
-  const fingerprint = String(payload.queryFingerprint || '').trim();
   const sqlSummary = String(payload.querySummary || payload.message || '').trim();
-  const displayName = fingerprint
-    ? `Query ${fingerprint}`
-    : (sqlSummary ? sqlSummary.slice(0, 72) : `Conversion event ${index + 1}`);
   const connectivityMode = payload.connectivityMode || row.connectivity_mode || 'without';
   const target = payload.target || 'method';
   const databaseType = payload.databaseType || (connectivityMode === 'with' ? 'connected' : 'without');
   const area = `${connectivityMode} connectivity`;
+  const clauses = Array.isArray(payload.clauseProfile)
+    ? payload.clauseProfile.map((c) => String(c || '').toUpperCase()).filter(Boolean)
+    : [];
+  const queryElements = clauses.length ? clauses : ['SELECT'];
+  const queryType = deriveQueryType(queryElements);
+  const concept = `${targetConceptLabel(target)} · ${connectivityMode === 'with' ? 'with DB connectivity' : 'without DB connectivity'}`;
+  const displayName = sqlSummary && !/^clauses\s*:/i.test(sqlSummary)
+    ? sqlSummary.slice(0, 72)
+    : queryType;
 
   return {
     id: payload.queryId || `E${String(row.id).padStart(4, '0')}`,
     name: displayName,
     area,
+    queryType,
+    queryElements,
+    concept,
+    queryFingerprint: payload.queryFingerprint || null,
     target,
     connectivityMode,
     databaseType,

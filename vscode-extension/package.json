@@ -2,7 +2,7 @@
   "name": "sqlinq-vscode-extension",
   "displayName": "SQLinq",
   "description": "Convert basic SQL to LINQ inside VS Code.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "sqlinq",
   "license": "MIT",
   "repository": {
@@ -16,6 +16,7 @@
     "Programming Languages",
     "Other"
   ],
+  "icon": "assets/icon.png",
   "main": "./extension.js",
   "scripts": {
     "package": "vsce package",

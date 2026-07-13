@@ -1,4 +1,4 @@
 {
-  "apiBaseUrl": "",
-  "telemetryEndpoint": ""
+  "apiBaseUrl": "https://sqlinq.vercel.app",
+  "telemetryEndpoint": "https://sqlinq.vercel.app/api/events/conversion"
 }
