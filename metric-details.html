@@ -34,7 +34,7 @@
       <p class="eyebrow">Trust reporting</p>
       <h1>Metric details</h1>
       <p class="lede">Detailed conversion quality, performance, and issue-coverage data from live conversion events or the latest benchmark report.</p>
-      <p class="page-note">Enterprise-safe telemetry: raw SQL text and generated LINQ are not persisted. Metrics are based on status, timing, syntax target, connectivity mode, and query fingerprint metadata.</p>
+      <p class="page-note">Enterprise-safe telemetry: raw SQL text and generated LINQ are not persisted. Metrics are based on status, timing, syntax target, connectivity mode, and query fingerprint metadata. Database values are telemetry tags reported by the client, not server-verified engine detection.</p>
     </section>
 
     <div class="shell stats-grid">
@@ -88,12 +88,12 @@
       <div class="metrics-view is-active" id="metricsViewTable" data-metrics-view-panel="table">
         <div class="segmented-grid">
           <article class="segment-card">
-            <h3>Database mode breakdown</h3>
+            <h3>Database tag breakdown</h3>
             <div class="table-wrap">
               <table class="data-table" id="qaDbTable">
                 <thead>
                   <tr>
-                    <th>Database</th>
+                    <th>Database tag</th>
                     <th>Queries</th>
                     <th>Exact rate</th>
                     <th>Avg correctness</th>
@@ -157,7 +157,7 @@
                 <th>Query</th>
                 <th>Syntax</th>
                 <th>Connectivity</th>
-                <th>Database</th>
+                <th>Database tag</th>
                 <th>Parse</th>
                 <th>Convert</th>
                 <th>Correctness</th>
@@ -177,16 +177,20 @@
       <div class="metrics-view" id="metricsViewGraph" data-metrics-view-panel="graph" hidden>
         <div class="segmented-grid">
           <article class="segment-card">
-            <h3>Database mode graph</h3>
-            <div id="qaDbGraph" class="graph-list"></div>
+            <h3>Database tag bar chart</h3>
+            <div id="qaDbGraph" class="chart-host" role="img" aria-label="Database tag exact-match bar chart"></div>
           </article>
           <article class="segment-card">
-            <h3>Connectivity mode graph</h3>
-            <div id="qaConnectivityGraph" class="graph-list"></div>
+            <h3>Connectivity bar chart</h3>
+            <div id="qaConnectivityGraph" class="chart-host" role="img" aria-label="Connectivity exact-match bar chart"></div>
           </article>
           <article class="segment-card">
-            <h3>Syntax target graph</h3>
-            <div id="qaTargetGraph" class="graph-list"></div>
+            <h3>Syntax target bar chart</h3>
+            <div id="qaTargetGraph" class="chart-host" role="img" aria-label="Syntax exact-match bar chart"></div>
+          </article>
+          <article class="segment-card chart-wide">
+            <h3>Conversion time trend (line chart)</h3>
+            <div id="qaTimeTrendGraph" class="chart-host" role="img" aria-label="Conversion time trend line chart"></div>
           </article>
         </div>
       </div>

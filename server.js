@@ -151,6 +151,7 @@ function summarizeConversionEvent(row, index) {
     target,
     connectivityMode,
     databaseType,
+    createdAt: row.created_at,
     parseStatus: row.parse_status,
     convertStatus: row.convert_status,
     correctness: Number(row.correctness || 0),

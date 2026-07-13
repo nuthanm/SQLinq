@@ -353,6 +353,7 @@ function normalizeQualityRows(rows) {
     target: String(row.target || "method").toLowerCase(),
     connectivityMode: String(row.connectivityMode || "without").toLowerCase(),
     databaseType: String(row.databaseType || "without").toLowerCase(),
+    createdAt: row.createdAt || null,
     parseStatus: row.parseStatus || "Pass",
     convertStatus: row.convertStatus || "Pass",
     correctness: Number(row.correctness ?? 0),
@@ -376,8 +377,8 @@ function connectivityLabel(mode) {
 
 function databaseLabel(dbType) {
   if (!dbType || dbType === "without" || dbType === "none") return "Without database";
-  if (dbType === "connected") return "Connected database";
-  return dbType.toUpperCase();
+  if (dbType === "connected") return "Connected (type not reported)";
+  return `Reported: ${dbType.toUpperCase()}`;
 }
 
 function summarizeGroups(rows, keySelector) {
@@ -434,17 +435,101 @@ function renderGroupGraph(containerId, groups, labelSelector) {
     return;
   }
 
-  root.innerHTML = groups.map((g) => `
-    <div class="graph-row">
-      <div class="graph-row-top">
-        <span>${escapeHtml(labelSelector(g.key))}</span>
-        <span>${g.total} query(s) · ${g.exactRate.toFixed(1)}% exact</span>
-      </div>
-      <div class="graph-bar-track">
-        <div class="graph-bar" style="width:${Math.max(4, Math.min(100, g.exactRate)).toFixed(1)}%"></div>
-      </div>
-    </div>
+  const width = 520;
+  const height = 220;
+  const margin = { top: 18, right: 16, bottom: 46, left: 34 };
+  const chartW = width - margin.left - margin.right;
+  const chartH = height - margin.top - margin.bottom;
+  const maxBars = Math.max(1, groups.length);
+  const band = chartW / maxBars;
+  const barW = Math.max(18, band * 0.52);
+
+  const bars = groups.map((g, i) => {
+    const value = Math.max(0, Math.min(100, g.exactRate));
+    const x = margin.left + i * band + (band - barW) / 2;
+    const h = (value / 100) * chartH;
+    const y = margin.top + chartH - h;
+    const cx = margin.left + i * band + band / 2;
+    return `
+      <rect class="chart-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="4"></rect>
+      <text class="chart-value" x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle">${value.toFixed(1)}%</text>
+      <text class="chart-label" x="${cx.toFixed(1)}" y="${(height - 22).toFixed(1)}" text-anchor="middle">${escapeHtml(labelSelector(g.key))}</text>
+      <text class="chart-label" x="${cx.toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="middle">${g.total} q</text>
+    `;
+  }).join("");
+
+  const grid = [0, 25, 50, 75, 100].map((t) => {
+    const y = margin.top + chartH - (t / 100) * chartH;
+    return `
+      <line class="chart-grid" x1="${margin.left}" y1="${y.toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${y.toFixed(1)}"></line>
+      <text class="chart-label" x="${(margin.left - 8).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end">${t}</text>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+      ${grid}
+      <line class="chart-axis" x1="${margin.left}" y1="${(margin.top + chartH).toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${(margin.top + chartH).toFixed(1)}"></line>
+      <line class="chart-axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${(margin.top + chartH).toFixed(1)}"></line>
+      ${bars}
+    </svg>
+  `;
+}
+
+function renderTimeTrendChart(rows) {
+  const root = document.getElementById("qaTimeTrendGraph");
+  if (!root) return;
+
+  const points = rows
+    .map((row, idx) => ({
+      xLabel: row.createdAt ? new Date(row.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : `#${idx + 1}`,
+      y: Number(row.timeMs || 0),
+    }))
+    .sort((a, b) => a.xLabel.localeCompare(b.xLabel));
+
+  if (!points.length) {
+    root.innerHTML = '<p class="caption">No trend data yet.</p>';
+    return;
+  }
+
+  const width = 980;
+  const height = 280;
+  const margin = { top: 18, right: 16, bottom: 48, left: 44 };
+  const chartW = width - margin.left - margin.right;
+  const chartH = height - margin.top - margin.bottom;
+  const maxY = Math.max(1, ...points.map((p) => p.y));
+
+  const coords = points.map((p, i) => {
+    const x = margin.left + (points.length === 1 ? chartW / 2 : (i / (points.length - 1)) * chartW);
+    const y = margin.top + chartH - (p.y / maxY) * chartH;
+    return { ...p, x, y };
+  });
+
+  const path = coords.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const yTicks = [0, maxY * 0.25, maxY * 0.5, maxY * 0.75, maxY].map((v) => Number(v.toFixed(1)));
+
+  const grid = yTicks.map((t) => {
+    const y = margin.top + chartH - (t / maxY) * chartH;
+    return `
+      <line class="chart-grid" x1="${margin.left}" y1="${y.toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${y.toFixed(1)}"></line>
+      <text class="chart-label" x="${(margin.left - 8).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end">${t}</text>
+    `;
+  }).join("");
+
+  const dots = coords.map((p) => `
+    <circle class="chart-point" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3"></circle>
+    <text class="chart-label" x="${p.x.toFixed(1)}" y="${(height - 12).toFixed(1)}" text-anchor="middle">${escapeHtml(p.xLabel)}</text>
   `).join("");
+
+  root.innerHTML = `
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+      ${grid}
+      <line class="chart-axis" x1="${margin.left}" y1="${(margin.top + chartH).toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${(margin.top + chartH).toFixed(1)}"></line>
+      <line class="chart-axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${(margin.top + chartH).toFixed(1)}"></line>
+      <path class="chart-line" d="${path}"></path>
+      ${dots}
+    </svg>
+  `;
 }
 
 function renderSegmentedMetrics(rows) {
@@ -459,6 +544,7 @@ function renderSegmentedMetrics(rows) {
   renderGroupGraph("qaDbGraph", byDb, databaseLabel);
   renderGroupGraph("qaConnectivityGraph", byConnectivity, connectivityLabel);
   renderGroupGraph("qaTargetGraph", byTarget, targetLabel);
+  renderTimeTrendChart(rows);
 }
 
 function setQualityPill(text, mode = "live") {

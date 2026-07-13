@@ -1056,36 +1056,57 @@ kbd {
   font-size: 0.92rem;
 }
 
-.graph-list {
-  display: grid;
-  gap: 0.6rem;
-}
-
-.graph-row {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.graph-row-top {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-}
-
-.graph-bar-track {
+.chart-host {
   width: 100%;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--paper-2);
-  overflow: hidden;
+  min-height: 200px;
 }
 
-.graph-bar {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+.chart-wide {
+  grid-column: 1 / -1;
+}
+
+.chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-axis,
+.chart-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.chart-grid {
+  stroke-dasharray: 2 4;
+}
+
+.chart-bar {
+  fill: var(--accent);
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--accent-deep);
+  stroke-width: 2;
+}
+
+.chart-point {
+  fill: #fff;
+  stroke: var(--accent-deep);
+  stroke-width: 2;
+}
+
+.chart-label {
+  fill: var(--ink-soft);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.chart-value {
+  fill: var(--ink);
+  font-size: 11px;
+  font-family: var(--mono);
 }
 
 .stats-grid {
