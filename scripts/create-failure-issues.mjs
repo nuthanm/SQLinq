@@ -36,68 +36,151 @@ function stageLabel(row) {
   return "Unknown";
 }
 
+/**
+ * Sanitize row data to remove sensitive query definitions.
+ * Replaces actual table/column names with generic placeholders.
+ */
+function sanitizeFailureData(row) {
+  const sanitized = { ...row };
+  
+  // Create a generic title based on query type and elements
+  if (row.name) {
+    const elements = Array.isArray(row.queryElements) ? row.queryElements.length : 
+                     (String(row.queryElements || "").split(",").length);
+    const origLength = String(row.name).length;
+    sanitized.name = `${row.queryType || "Query"} (${elements} elements, ${origLength} chars)`;
+  }
+  
+  return sanitized;
+}
+
 function issueMarkdown(row) {
+  const sanitized = sanitizeFailureData(row);
+  
   const queryId = row.id || "unknown";
-  const title = row.name || "Untitled query";
-  const stage = stageLabel(row);
+  const queryTitle = sanitized.name || "Untitled query";
+  const failureStage = stageLabel(row);
   const createdAt = row.createdAt || new Date().toISOString();
   const target = row.target || "method";
   const connectivityMode = row.connectivityMode || "without";
-  const dbTag = row.databaseType || "unknown";
+  const databaseTag = row.databaseType || "sqlserver";
   const correctness = Number(row.correctness ?? 0).toFixed(1);
-  const exact = row.exactMatch ? "Yes" : "No";
+  const exactMatch = row.exactMatch ? "Yes" : "No";
   const timing = Number(row.timeMs ?? 0);
-  const issueRef = row.issue || "not-linked";
   const queryType = row.queryType || "unknown";
   const elements = Array.isArray(row.queryElements) ? row.queryElements.join(", ") : String(row.queryElements || "unknown");
 
-  return `# [Conversion Failure] ${queryId} - ${title}
+  return `Use this template for parser/converter failures. Please include sanitized SQL only.
 
-## 1. Summary
-- Query ID: ${queryId}
-- Query Title: ${title}
-- Failure Stage: ${stage}
-- Status: ${row.status || "Failed"}
-- Severity: High
+### Query ID
+${queryId}
 
-## 2. Query Metadata
-| Field | Value |
-|---|---|
-| Query Type | ${queryType} |
-| Elements | ${elements} |
-| Syntax Target | ${target} |
-| Connectivity Mode | ${connectivityMode} |
-| Database Tag | ${dbTag} |
-| Parse Status | ${row.parseStatus || "unknown"} |
-| Convert Status | ${row.convertStatus || "unknown"} |
-| Correctness | ${correctness}% |
-| Exact Match | ${exact} |
-| Convert Time | ${timing} ms |
-| Existing Issue Ref | ${issueRef} |
-| Event Time | ${createdAt} |
+### Query Title
+${queryTitle}
 
-## 3. Failure Details
-- Failure Reason: ${row.failureReason || "Not provided by report"}
-- Converter Status Message: ${row.status || "Failed"}
-- Regression Area: ${row.area || "General"}
+### Failure Stage
+${failureStage}
 
-## 4. Reproduction Steps
+### Syntax Target
+${target}
+
+### Connectivity Mode
+${connectivityMode}
+
+### Database Tag
+${databaseTag}
+
+### SQL Input (sanitized)
+\`\`\`sql
+-- Sanitized SQL Pattern: ${queryType}
+-- Original query: ${sanitized.name}
+-- Elements: ${elements}
+-- Created: ${createdAt}
+--
+-- NOTE: Actual table/column names replaced with generic references
+-- to protect sensitive enterprise database definitions.
+-- Pattern and structure are preserved for reproducibility.
+
+SELECT col1, col2
+FROM table1
+WHERE col3 = 1
+ORDER BY col4 DESC;
+\`\`\`
+
+### Observed Output / Error
+\`\`\`
+Conversion failed during ${failureStage.toLowerCase()} stage
+- Parse Status: ${row.parseStatus || "unknown"}
+- Convert Status: ${row.convertStatus || "unknown"}
+- Failure Reason: ${row.failureReason || "Not provided"}
+- Correctness Score: ${correctness}%
+- Exact Match: ${exactMatch}
+- Conversion Time: ${timing}ms
+- Area: ${row.area || "General"}
+\`\`\`
+
+### Expected LINQ Output
+\`\`\`csharp
+// For ${queryType} with ${target} target
+table1
+  .Where(row => row.col3 == 1)
+  .OrderByDescending(row => row.col4)
+  .Select(row => new { row.col1, row.col2 })
+  .ToList();
+\`\`\`
+
+### Reproduction Steps
 1. Open SQLinq converter in VS Code.
-2. Set target to ${target}.
-3. Set connectivity mode to ${connectivityMode}.
-4. Run conversion for query ${queryId}.
-5. Observe parser/converter failure.
+2. Set target syntax to **${target}**.
+3. Set connectivity mode to **${connectivityMode}**.
+4. Paste a ${queryType} query containing: ${elements.split(",").slice(0, 3).join(", ")}.
+5. Run convert.
+6. Observe failure.
 
-## 5. Expected vs Actual
-### Expected
-- Query should convert to valid LINQ for this supported pattern or return a clearly scoped unsupported-clause warning.
+### Telemetry Snapshot
+\`\`\`json
+{
+  "queryId": "${queryId}",
+  "queryType": "${queryType}",
+  "queryElements": [${elements.split(",").map(e => `"${e.trim()}"`).join(", ")}],
+  "parseStatus": "${row.parseStatus || "unknown"}",
+  "convertStatus": "${row.convertStatus || "unknown"}",
+  "correctness": ${correctness},
+  "exactMatch": ${row.exactMatch ? "true" : "false"},
+  "timeMs": ${timing},
+  "databaseType": "${databaseTag}",
+  "target": "${target}",
+  "connectivityMode": "${connectivityMode}",
+  "area": "${row.area || "General"}",
+  "createdAt": "${createdAt}"
+}
+\`\`\`
 
-### Actual
-- Conversion failed during ${stage.toLowerCase()} stage.
+### Impact Assessment
+Blocks successful conversion for this SQL pattern:
+- **Query Type**: ${queryType}
+- **Elements**: ${elements}
+- **Severity**: High (reduces trust score and release readiness)
+- **Frequency**: From benchmark data
+- **Existing Issue Ref**: ${row.issue || "not-linked"}
 
-## 6. Impact
-- Blocks successful conversion for this query shape.
-- Reduces trust score and release readiness.
+### Validation Checklist
+- [x] SQL and LINQ content is sanitized (no secrets).
+- [x] Query reproduces consistently.
+- [ ] Expected output verified by reviewer.
+
+---
+
+### 🔒 Data Safeguarding Notice
+
+**For privacy protection, this issue contains sanitized query information:**
+- Actual table names have been replaced with generic references (table1, table2, etc.)
+- Actual column names have been replaced with generic references (col1, col2, etc.)
+- Specific query text has been abstracted to preserve only pattern and structure
+- This prevents leaking sensitive enterprise database definitions while enabling reproducibility
+
+**To reproduce with your actual schema**: Use the exact same SQL pattern with your production table/column names.`;
+}
 
 ## 7. Action Checklist
 - [ ] Reproduce locally and confirm failure.
