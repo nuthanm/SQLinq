@@ -346,7 +346,9 @@ function getConfidenceBand(score) {
 }
 
 function normalizeQualityRows(rows) {
-  return rows.map((row, idx) => ({
+  return rows
+    .filter((row) => !Boolean(row.isTest) && !String(row.name || "").toLowerCase().includes("fmanual"))
+    .map((row, idx) => ({
     id: row.id || `Q${String(idx + 1).padStart(3, "0")}`,
     name: row.name || `Query ${idx + 1}`,
     area: row.area || "General",

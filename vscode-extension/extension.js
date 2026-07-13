@@ -82,6 +82,7 @@ async function sendConversionEvent(data) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         source: telemetry.source,
+        isTest: false,
         databaseType: data.connectivityMode === 'with' ? telemetry.databaseType : 'without',
         ...data,
       }),

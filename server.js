@@ -169,6 +169,8 @@ async function loadLatestConversionEventsFromDb() {
     `SELECT id, source, connectivity_mode, parse_status, convert_status, correctness,
             exact_match, time_ms, issue_ref, payload, created_at
      FROM conversion_events
+      WHERE COALESCE(payload->>'isTest', 'false') <> 'true'
+       AND COALESCE(payload->>'queryFingerprint', '') NOT ILIKE 'fmanual%'
      ORDER BY created_at DESC
      LIMIT 50`
   );
@@ -302,11 +304,25 @@ app.get("/api/dashboard/conversion-events", async (_req, res) => {
 
 app.post("/api/events/conversion", async (req, res) => {
   const payload = req.body || {};
+  const connectivityMode = String(payload.connectivityMode || "without").toLowerCase() === "with"
+    ? "with"
+    : "without";
+  const targetRaw = String(payload.target || "method").toLowerCase();
+  const target = ["method", "query", "ef"].includes(targetRaw) ? targetRaw : "method";
+  const allowedDbTypes = new Set(["mssql", "postgresql", "mysql", "oracle", "sqlite", "connected"]);
+  const dbRaw = String(payload.databaseType || "connected").toLowerCase();
+  const databaseType = connectivityMode === "with"
+    ? (allowedDbTypes.has(dbRaw) ? dbRaw : "connected")
+    : "without";
+  const isTest = Boolean(payload.isTest)
+    || String(payload.source || "").toLowerCase().includes("test")
+    || String(payload.queryFingerprint || "").toLowerCase().startsWith("fmanual");
   const sanitizedPayload = {
     source: payload.source || "vscode-extension",
-    connectivityMode: payload.connectivityMode || "without",
-    target: payload.target || "method",
-    databaseType: payload.databaseType || "without",
+    isTest,
+    connectivityMode,
+    target,
+    databaseType,
     parseStatus: payload.parseStatus || "Unknown",
     convertStatus: payload.convertStatus || "Unknown",
     correctness: payload.correctness == null ? null : Number(payload.correctness),
