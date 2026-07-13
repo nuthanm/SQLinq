@@ -36,6 +36,24 @@
         "title": "SQLinq: Open Converter UI"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "sqlinq.convertSelection",
+          "when": "editorHasSelection",
+          "group": "navigation@50"
+        },
+        {
+          "command": "sqlinq.convertSelectionQuick",
+          "when": "editorHasSelection",
+          "group": "navigation@51"
+        },
+        {
+          "command": "sqlinq.openConverterUi",
+          "group": "navigation@52"
+        }
+      ]
+    },
     "configuration": {
       "title": "SQLinq",
       "properties": {
