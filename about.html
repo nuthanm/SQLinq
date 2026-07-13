@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>About SQLinq</title>
+  <meta name="description" content="About SQLinq: purpose, audience, and development approach." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="doc-page">
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header" id="top">
+    <div class="shell header-inner">
+      <a class="brand" href="index.html#home" aria-label="Back to home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">SQLinq</span>
+      </a>
+      <nav class="nav" aria-label="Page navigation">
+        <a class="nav-link" href="index.html">Home</a>
+        <a class="nav-link" href="release-planning.html">Release planning</a>
+        <a class="nav-link is-active" href="about.html">About us</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="shell doc-hero">
+      <p class="eyebrow">Company</p>
+      <h1>About SQLinq</h1>
+      <p class="lede">SQLinq exists to help developers convert SQL into readable, idiomatic LINQ directly in their editor, while making conversion quality and limitations transparent.</p>
+    </section>
+
+    <section class="shell doc-wrap">
+      <div class="doc-grid">
+        <div class="doc-stack">
+          <article class="doc-card">
+            <h2>Purpose</h2>
+            <p>SQLinq was created for teams that work across SQL and C# every day and need a practical bridge, not a black-box converter. The product goal is to reduce repetitive manual translation while keeping developers in control of the output.</p>
+            <h3>What makes it different</h3>
+            <ul>
+              <li>Editor-first workflow: conversion happens where code already lives.</li>
+              <li>Explainable pipeline: parse, bind, rewrite, emit.</li>
+              <li>Trust signals: correctness and exact-match metrics are visible.</li>
+              <li>Phase-based delivery: limited scope, measurable quality gates.</li>
+            </ul>
+          </article>
+
+          <article class="doc-card">
+            <h2>Who it is for</h2>
+            <p>SQLinq is designed for .NET developers, technical leads, and teams modernizing data access code. It is especially useful when SQL logic needs to be brought into LINQ-based repositories with less manual effort and fewer regressions.</p>
+            <ul>
+              <li>Developers converting legacy SQL to LINQ in active projects.</li>
+              <li>Teams reviewing SQL/LINQ parity as part of pull requests.</li>
+              <li>Architects who need a transparent and extensible conversion path.</li>
+            </ul>
+          </article>
+
+          <article class="doc-card">
+            <h2>How we build</h2>
+            <p>The product is developed in phases so each release is testable and clearly scoped. Phase 1 targets Microsoft SQL Server conversion patterns first, then expands by dialect through provider architecture.</p>
+            <h3>Current direction</h3>
+            <ul>
+              <li>Improve correctness for common and high-value query patterns.</li>
+              <li>Track failed and partial conversions and tie them to issues.</li>
+              <li>Expose practical performance and reliability indicators.</li>
+              <li>Keep the core reusable across Visual Studio and VS Code hosts.</li>
+            </ul>
+          </article>
+        </div>
+
+        <aside class="doc-aside" aria-label="Summary">
+          <h2>At a glance</h2>
+          <ul class="doc-kv">
+            <li><strong>Product</strong>SQLinq</li>
+            <li><strong>Scope</strong>SQL to LINQ conversion tooling</li>
+            <li><strong>Primary audience</strong>.NET teams and SQL-heavy workflows</li>
+            <li><strong>Delivery model</strong>Phase-based, quality-first releases</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div class="footer-grid" aria-label="Footer links">
+        <section class="footer-column">
+          <h2>Company</h2>
+          <a class="footer-link" href="about.html">About us</a>
+          <a class="footer-link" href="contact.html">Contact</a>
+          <a class="footer-link" href="sitemap.html">Sitemap</a>
+        </section>
+        <section class="footer-column">
+          <h2>Legal</h2>
+          <a class="footer-link" href="copyright.html">Copyright</a>
+          <a class="footer-link" href="privacy.html">Privacy</a>
+          <a class="footer-link" href="terms.html">Terms</a>
+        </section>
+      </div>
+      <p class="fine footer-legal-line">Copyright 2026 SQLinq. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>

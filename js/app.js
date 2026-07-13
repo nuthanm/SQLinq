@@ -56,6 +56,9 @@ function applyBranding() {
     if (a.id === "githubCommitsLink") a.href = `${cfg.githubUrl}/commits`;
     else a.href = cfg.githubUrl;
   });
+
+  const year = document.getElementById("currentYear");
+  if (year) year.textContent = String(new Date().getFullYear());
 }
 
 function formatDisplayDate(iso) {
@@ -922,8 +925,50 @@ if (refreshBtn) {
   refreshBtn.addEventListener("click", () => loadGithubLive(true));
 }
 
+const scrollDock = document.querySelector(".scroll-dock");
+const scrollTopBtn = document.getElementById("scrollTopBtn");
+const scrollBottomBtn = document.getElementById("scrollBottomBtn");
+
+function updateScrollControls() {
+  if (!scrollDock) return;
+
+  const doc = document.documentElement;
+  const top = window.scrollY || doc.scrollTop || 0;
+  const viewport = window.innerHeight || doc.clientHeight;
+  const full = doc.scrollHeight;
+  const max = Math.max(0, full - viewport);
+  const nearTop = top <= 32;
+  const nearBottom = max - top <= 32;
+  const shouldShow = max > 180;
+
+  scrollDock.classList.toggle("is-visible", shouldShow);
+
+  if (scrollTopBtn instanceof HTMLButtonElement) {
+    scrollTopBtn.disabled = nearTop;
+  }
+  if (scrollBottomBtn instanceof HTMLButtonElement) {
+    scrollBottomBtn.disabled = nearBottom;
+  }
+}
+
+if (scrollTopBtn instanceof HTMLButtonElement) {
+  scrollTopBtn.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+}
+
+if (scrollBottomBtn instanceof HTMLButtonElement) {
+  scrollBottomBtn.addEventListener("click", () => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+  });
+}
+
+window.addEventListener("scroll", updateScrollControls, { passive: true });
+window.addEventListener("resize", updateScrollControls);
+
 applyBranding();
 loadQualityDashboard();
+updateScrollControls();
 
 function syncViewFromHash() {
   const hash = (location.hash || "").replace("#", "");

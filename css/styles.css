@@ -1710,6 +1710,153 @@ kbd {
   transform: translateX(2px);
 }
 
+.footer-legal-line {
+  margin: 1rem 0 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, #fff);
+}
+
+.footer-meta {
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, #fff);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.footer-meta .footer-copy {
+  min-height: 0;
+  max-width: 72ch;
+}
+
+.scroll-dock {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 60;
+  display: grid;
+  gap: 0.45rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.scroll-dock.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.scroll-btn {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  border-radius: 999px;
+  min-width: 92px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(6, 31, 66, 0.16);
+}
+
+.scroll-btn:hover {
+  background: #fff;
+}
+
+.scroll-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Info pages */
+.doc-page {
+  background:
+    radial-gradient(70% 42% at 90% 0%, rgba(10, 110, 209, 0.14), transparent 58%),
+    radial-gradient(40% 35% at 0% 95%, rgba(8, 79, 153, 0.1), transparent 50%),
+    var(--paper);
+}
+
+.doc-hero {
+  padding: 2.9rem 0 1.35rem;
+}
+
+.doc-wrap {
+  padding-bottom: 3rem;
+}
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.doc-card,
+.doc-aside {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.15rem 1.2rem;
+}
+
+.doc-card h2,
+.doc-aside h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1.08rem;
+}
+
+.doc-card h3 {
+  margin: 1rem 0 0.35rem;
+  font-size: 0.98rem;
+}
+
+.doc-card p,
+.doc-aside p,
+.doc-card li,
+.doc-aside li {
+  color: var(--ink-soft);
+}
+
+.doc-card ul,
+.doc-aside ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.doc-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.doc-aside {
+  position: sticky;
+  top: 84px;
+}
+
+.doc-kv {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.doc-kv li {
+  border-bottom: 1px solid var(--paper-2);
+  padding-bottom: 0.45rem;
+}
+
+.doc-kv strong {
+  color: var(--ink);
+  display: block;
+  margin-bottom: 0.1rem;
+}
+
 /* Release planning page */
 .release-page {
   background:
@@ -2121,7 +2268,8 @@ kbd {
   .release-hero-grid,
   .release-timeline,
   .translation-stage,
-  .footer-grid {
+  .footer-grid,
+  .doc-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2155,6 +2303,21 @@ kbd {
 
   .footer-copy {
     min-height: 0;
+  }
+
+  .doc-aside {
+    position: static;
+  }
+
+  .scroll-dock {
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  .scroll-btn {
+    min-width: 84px;
+    padding: 0.42rem 0.7rem;
+    font-size: 0.78rem;
   }
 }
 
