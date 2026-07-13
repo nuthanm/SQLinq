@@ -1019,13 +1019,13 @@ function renderFailureIssues(failures) {
 
   panel.hidden = false;
   tbody.innerHTML = failures
-    .map((row) => {
+    .map((row, index) => {
       const issueNo = extractIssueNumber(row.issue);
       const issueCell = issueNo && cfg?.githubUrl
         ? `<a href="${cfg.githubUrl}/issues/${issueNo}" target="_blank" rel="noopener">#${issueNo} &rarr; ${escapeHtml(cfg.githubUrl.split("/").pop())}</a>`
         : row.issue
           ? escapeHtml(row.issue)
-          : `<button class="qa-create-issue-btn" onclick="createIssueForFailure(${JSON.stringify(row)}, this)">Create issue →</button>`;
+          : `<button type="button" class="qa-create-issue-btn" data-failure-index="${index}">Create issue &rarr;</button>`;
       return `<tr class="qa-row-risk">
           <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
           <td>${escapeHtml(row.parseStatus)}</td>
@@ -1035,6 +1035,14 @@ function renderFailureIssues(failures) {
         </tr>`;
     })
     .join("");
+
+  tbody.querySelectorAll(".qa-create-issue-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.getAttribute("data-failure-index"));
+      if (!Number.isInteger(index) || !failures[index]) return;
+      createIssueForFailure(failures[index], button);
+    });
+  });
 }
 
 function setQualityPill(text, mode = "live") {
