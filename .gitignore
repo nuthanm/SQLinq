@@ -44,6 +44,11 @@ data/catalog.merged.json
 # vercel
 .vercel
 
+# vscode extension artifacts
+vscode-extension/node_modules/
+vscode-extension/package-lock.json
+vscode-extension/*.vsix
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -4,11 +4,23 @@
   "description": "Convert basic SQL to LINQ inside VS Code.",
   "version": "0.1.0",
   "publisher": "sqlinq",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sqlinq/sqlinq.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Programming Languages", "Other"],
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
   "main": "./extension.js",
+  "scripts": {
+    "package": "vsce package",
+    "install-local": "npm run package && code --install-extension %npm_package_name%-%npm_package_version%.vsix --force"
+  },
   "contributes": {
     "commands": [
       {
@@ -39,5 +51,8 @@
         }
       }
     }
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2"
   }
 }
