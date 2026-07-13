@@ -78,24 +78,60 @@ function buildSafeQuerySummary(sqlText) {
   const hasOrderBy = clauses.includes('ORDER BY');
   const hasDistinct = /\bselect\s+distinct\b/i.test(compact);
   const hasWildcard = /^\s*select\s+(?:distinct\s+)?\*\s+from\b/i.test(compact);
+  const selectMatch = compact.match(/^\s*select\s+([\s\S]+?)\s+from\b/i);
+  const selectText = selectMatch && selectMatch[1] ? String(selectMatch[1]).trim() : '';
+  const hasTopFilter = /^\s*select\s+top\s*(?:\(\s*\d+\s*\)|\d+)(?:\s|$)/i.test(compact);
+  const hasPaging = /\border\s+by\b[\s\S]*\boffset\s+\d+\s+rows\b[\s\S]*\bfetch\s+next\s+\d+\s+rows\s+only\b/i.test(compact);
+  const hasCaseExpression = /\bcase\b[\s\S]*\bwhen\b[\s\S]*\bthen\b[\s\S]*\bend\b/i.test(selectText);
+  const hasComputedExpression = !hasCaseExpression && (
+    /\b(datediff|dateadd|getdate|len|substring|cast|convert|coalesce|isnull|round|abs)\s*\(/i.test(selectText)
+      || /\b[a-z_][\w]*\s*[+\-*/]\s*[a-z_\d][\w]*/i.test(selectText)
+  );
   const whereMatch = compact.match(/\bwhere\b([\s\S]*?)(?=\border\s+by\b|\bgroup\s+by\b|\bhaving\b|$)/i);
   const whereText = whereMatch && whereMatch[1] ? String(whereMatch[1]).trim() : '';
   const hasLikeFilter = /\blike\b/i.test(whereText);
-  const hasNullCheckFilter = /\bis\s+(?:not\s+)?null\b/i.test(whereText);
+  const hasNullFilter = /\bis\s+null\b/i.test(whereText);
+  const hasNotNullFilter = /\bis\s+not\s+null\b/i.test(whereText);
+  const hasNullCheckFilter = hasNullFilter || hasNotNullFilter;
+  const hasInPredicate = /\bin\s*\(/i.test(whereText);
+  const hasBetweenPredicate = /\bbetween\b[\s\S]*\band\b/i.test(whereText);
   const hasMultiConditionFilter = /\b(and|or)\b/i.test(whereText);
+  const likePatternMatch = whereText.match(/\blike\s+'([^']*)'/i);
+  const likePattern = likePatternMatch && likePatternMatch[1] ? String(likePatternMatch[1]) : '';
+  const likeType = !hasLikeFilter
+    ? 'none'
+    : (likePattern.startsWith('%') && likePattern.endsWith('%'))
+      ? 'contains'
+      : likePattern.startsWith('%')
+        ? 'endswith'
+        : likePattern.endsWith('%')
+          ? 'startswith'
+          : 'exact';
   const filterProfile = !hasWhere
     ? 'none'
     : hasLikeFilter
-      ? 'like'
-      : hasNullCheckFilter
-        ? 'null-check'
-        : hasMultiConditionFilter
-          ? 'multi-condition'
-          : 'basic';
+      ? `like-${likeType}`
+      : hasNotNullFilter
+        ? 'not-null-check'
+        : hasNullFilter
+          ? 'null-check'
+          : hasInPredicate
+            ? 'in-predicate'
+            : hasBetweenPredicate
+              ? 'between-predicate'
+              : hasMultiConditionFilter
+                ? 'multi-condition'
+                : 'basic';
 
   let filterLabel = 'filter';
-  if (filterProfile === 'like') filterLabel = 'LIKE filter';
-  else if (filterProfile === 'null-check') filterLabel = 'NULL check filter';
+  if (filterProfile === 'like-startswith') filterLabel = 'StartsWith filter';
+  else if (filterProfile === 'like-endswith') filterLabel = 'EndsWith filter';
+  else if (filterProfile === 'like-contains') filterLabel = 'Contains filter';
+  else if (filterProfile === 'like-exact') filterLabel = 'LIKE exact-match filter';
+  else if (filterProfile === 'null-check') filterLabel = 'IS NULL filter';
+  else if (filterProfile === 'not-null-check') filterLabel = 'IS NOT NULL filter';
+  else if (filterProfile === 'in-predicate') filterLabel = 'IN predicate filter';
+  else if (filterProfile === 'between-predicate') filterLabel = 'BETWEEN predicate filter';
   else if (filterProfile === 'multi-condition') filterLabel = 'multi-condition filter';
 
   let sortDirection = 'none';
@@ -127,11 +163,21 @@ function buildSafeQuerySummary(sqlText) {
   if (hasAlias) queryElementsDetailed.push('TABLE ALIAS');
   if (hasDistinct) queryElementsDetailed.push('DISTINCT');
   if (hasWhere) {
-    if (filterProfile === 'like') queryElementsDetailed.push('FILTER LIKE');
-    else if (filterProfile === 'null-check') queryElementsDetailed.push('FILTER NULL CHECK');
+    if (filterProfile === 'like-startswith') queryElementsDetailed.push('FILTER LIKE STARTSWITH');
+    else if (filterProfile === 'like-endswith') queryElementsDetailed.push('FILTER LIKE ENDSWITH');
+    else if (filterProfile === 'like-contains') queryElementsDetailed.push('FILTER LIKE CONTAINS');
+    else if (filterProfile === 'like-exact') queryElementsDetailed.push('FILTER LIKE EXACT');
+    else if (filterProfile === 'null-check') queryElementsDetailed.push('FILTER IS NULL');
+    else if (filterProfile === 'not-null-check') queryElementsDetailed.push('FILTER IS NOT NULL');
+    else if (filterProfile === 'in-predicate') queryElementsDetailed.push('FILTER IN PREDICATE');
+    else if (filterProfile === 'between-predicate') queryElementsDetailed.push('FILTER BETWEEN PREDICATE');
     else if (filterProfile === 'multi-condition') queryElementsDetailed.push('FILTER MULTI-CONDITION');
     else queryElementsDetailed.push('FILTER BASIC');
   }
+  if (hasTopFilter) queryElementsDetailed.push('TOP');
+  if (hasPaging) queryElementsDetailed.push('PAGING');
+  if (hasCaseExpression) queryElementsDetailed.push('CASE EXPRESSION');
+  if (hasComputedExpression) queryElementsDetailed.push('COMPUTED EXPRESSION');
   if (hasOrderBy) {
     if (sortDirection === 'desc') queryElementsDetailed.push('ORDER DESCENDING');
     else if (sortDirection === 'mixed') queryElementsDetailed.push('ORDER MIXED DIRECTIONS');
@@ -191,6 +237,33 @@ function buildSafeQuerySummary(sqlText) {
     } else {
       queryTypeLabel = 'Distinct select';
     }
+  }
+
+  // Prefer specific shape titles so logs can identify exact query types quickly.
+  if (hasPaging) {
+    queryTypeLabel = 'Select with Paging';
+  } else if (hasCaseExpression) {
+    queryTypeLabel = 'Select with CASE expression';
+  } else if (hasComputedExpression) {
+    queryTypeLabel = 'Select with Computed expression';
+  } else if (hasTopFilter) {
+    queryTypeLabel = 'Select with TOP filter';
+  } else if (filterProfile === 'like-startswith') {
+    queryTypeLabel = 'Select with StartsWith filter';
+  } else if (filterProfile === 'like-endswith') {
+    queryTypeLabel = 'Select with EndsWith filter';
+  } else if (filterProfile === 'like-contains') {
+    queryTypeLabel = 'Select with Contains filter';
+  } else if (filterProfile === 'null-check') {
+    queryTypeLabel = 'Select with IS NULL filter';
+  } else if (filterProfile === 'not-null-check') {
+    queryTypeLabel = 'Select with IS NOT NULL filter';
+  } else if (filterProfile === 'in-predicate') {
+    queryTypeLabel = 'Select with IN predicate filter';
+  } else if (filterProfile === 'between-predicate') {
+    queryTypeLabel = 'Select with BETWEEN predicate filter';
+  } else if (filterProfile === 'multi-condition') {
+    queryTypeLabel = 'Select with Logical Operator - Multi Condition Filter';
   }
 
   const queryFingerprint = `f${fnv1a32(compact)}`;

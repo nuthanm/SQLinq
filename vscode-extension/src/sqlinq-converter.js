@@ -165,19 +165,42 @@ function parseBasicSelect(sql) {
   }
 
   let alias = null;
-  if (tokens.length && !isClauseStarter(tokens[0])) {
-    alias = tokens.shift();
+  if (tokens.length) {
+    if (/^as$/i.test(tokens[0])) {
+      tokens.shift();
+      if (tokens.length && !isClauseStarter(tokens[0])) {
+        alias = tokens.shift();
+      }
+    } else if (!isClauseStarter(tokens[0])) {
+      alias = tokens.shift();
+    }
   }
 
   const tail = tokens.join(' ').trim();
   const whereMatch = tail.match(/\bwhere\b([\s\S]*?)(?=\border\s+by\b|$)/i);
   const orderMatch = tail.match(/\border\s+by\b([\s\S]*)$/i);
   const unsupported = [];
+  const whereText = whereMatch ? whereMatch[1].trim() : '';
+  const orderText = orderMatch ? orderMatch[1].trim() : '';
+
+  const hasTop = /^top\s*(?:\(\s*\d+\s*\)|\d+)(?:\s|$)/i.test(columns);
+  const hasInPredicate = /\bin\s*\(/i.test(whereText);
+  const hasBetweenPredicate = /\bbetween\b[\s\S]*\band\b/i.test(whereText);
+  const hasCaseExpression = /\bcase\b[\s\S]*\bwhen\b[\s\S]*\bthen\b[\s\S]*\bend\b/i.test(columns);
+  const hasPaging = /\boffset\s+\d+\s+rows\b[\s\S]*\bfetch\s+next\s+\d+\s+rows\s+only\b/i.test(orderText);
+  const hasComputedExpression = !hasCaseExpression
+    && /\b(datediff|dateadd|getdate|len|substring|cast|convert|coalesce|isnull|round|abs)\s*\(/i.test(columns);
 
   if (/\bgroup\s+by\b/i.test(tail)) unsupported.push('GROUP BY');
   if (/\bhaving\b/i.test(tail)) unsupported.push('HAVING');
   if (/\bjoin\b/i.test(tail)) unsupported.push('JOIN');
   if (/\bunion\b/i.test(tail)) unsupported.push('UNION');
+  if (hasTop) unsupported.push('TOP');
+  if (hasInPredicate) unsupported.push('IN');
+  if (hasBetweenPredicate) unsupported.push('BETWEEN');
+  if (hasCaseExpression) unsupported.push('CASE');
+  if (hasComputedExpression) unsupported.push('COMPUTED EXPRESSION');
+  if (hasPaging) unsupported.push('OFFSET/FETCH PAGING');
 
   return {
     ok: true,
@@ -255,6 +278,13 @@ function buildEfCoreSyntax(parsed) {
 function convertSqlToLinq(sql, target) {
   const parsed = parseBasicSelect(sql);
   if (!parsed.ok) return parsed;
+
+  if (parsed.unsupported.length) {
+    return {
+      ok: false,
+      error: `Unsupported yet: ${parsed.unsupported.join(', ')}.`,
+    };
+  }
 
   let output = '';
   if (target === 'query') {
