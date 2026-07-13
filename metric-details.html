@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SQLinq Metric Details</title>
+  <meta name="description" content="Detailed conversion correctness, performance, and issue-tracking metrics for SQLinq." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" id="siteFavicon" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/site-config.js"></script>
+</head>
+<body class="doc-page">
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header" id="top">
+    <div class="shell header-inner">
+      <a class="brand" href="/" aria-label="Back to home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name" data-bind="productName">SQLinq</span>
+      </a>
+      <nav class="nav" aria-label="Page navigation">
+        <a class="nav-link" href="/">Home</a>
+        <a class="nav-link" href="/visual-workflow">Visual workflow</a>
+        <a class="nav-link" href="/github-stats">GitHub stats</a>
+        <a class="nav-link is-active" href="/metric-details">Metric details</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="page-hero shell">
+      <p class="eyebrow">Trust reporting</p>
+      <h1>Metric details</h1>
+      <p class="lede">Detailed conversion quality, performance, and issue-coverage data from live conversion events or the latest benchmark report.</p>
+    </section>
+
+    <div class="shell stats-grid">
+      <article class="stat-block">
+        <h2>Conversion quality</h2>
+        <p class="stat-note">Measured from live conversion events when available, otherwise from the regression query suite.</p>
+        <ul>
+          <li><span>Correctness score</span><strong id="qaCorrectnessPct">-</strong></li>
+          <li><span>Exact matches</span><strong id="qaExactMatches">-</strong></li>
+          <li><span>Total queries</span><strong id="qaTotalQueries">-</strong></li>
+          <li><span>Exact-match rate</span><strong id="qaExactMatchRate">-</strong></li>
+          <li><span>Confidence level</span><strong id="qaConfidenceLevel">-</strong></li>
+        </ul>
+      </article>
+      <article class="stat-block">
+        <h2>Conversion performance</h2>
+        <p class="stat-note">Conversion timing from the same query suite to set realistic expectations.</p>
+        <ul>
+          <li><span>Average convert time</span><strong id="qaAvgTime">-</strong></li>
+          <li><span>Median convert time</span><strong id="qaMedianTime">-</strong></li>
+          <li><span>p95 convert time</span><strong id="qaP95Time">-</strong></li>
+          <li><span>Fastest query</span><strong id="qaFastest">-</strong></li>
+          <li><span>Slowest query</span><strong id="qaSlowest">-</strong></li>
+        </ul>
+      </article>
+      <article class="stat-block">
+        <h2>Failure tracking to issues</h2>
+        <p class="stat-note">Every failed conversion is tracked and pushed into upcoming release planning.</p>
+        <ul>
+          <li><span>Failed conversions</span><strong id="qaFailures">-</strong></li>
+          <li><span>Parser failures</span><strong id="qaParserFailures">-</strong></li>
+          <li><span>Partial conversions</span><strong id="qaPartials">-</strong></li>
+          <li><span>Issue coverage</span><strong id="qaIssueCoverage">-</strong></li>
+          <li><span>Next release focus</span><strong id="qaNextReleaseFocus">-</strong></li>
+          <li><span>Open issues (GitHub)</span><strong id="bugOpen">-</strong></li>
+          <li><span>Closed issues (GitHub)</span><strong id="bugClosed">-</strong></li>
+          <li><span>Fix status</span><strong id="bugFixPct">-</strong></li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="shell panel">
+      <div class="panel-head">
+        <h2>Per-query conversion trust report</h2>
+        <span class="live-pill is-live" id="qaSuitePill">Live conversion snapshot</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="qaTable">
+          <thead>
+            <tr>
+              <th>Query</th>
+              <th>Parse</th>
+              <th>Convert</th>
+              <th>Correctness</th>
+              <th>Exact match</th>
+              <th>Time</th>
+              <th>Status</th>
+              <th>Issue</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="8">Loading quality suite...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="caption" id="qaCaption">Live conversion events are stored in the backend and surfaced here when telemetry is enabled.</p>
+      <p class="caption">Confidence model: 55% correctness score + 35% exact-match rate + 10% failure-rate stability factor.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div class="footer-grid" aria-label="Footer links">
+        <section class="footer-column">
+          <h2>Actions</h2>
+          <a class="footer-link" href="/visual-workflow">Visual workflow</a>
+          <a class="footer-link" href="/github-stats">GitHub stats</a>
+          <a class="footer-link" href="/metric-details">Metric details</a>
+        </section>
+        <section class="footer-column">
+          <h2>Company</h2>
+          <a class="footer-link" href="/about">About us</a>
+          <a class="footer-link" href="/contact">Contact</a>
+          <a class="footer-link" href="/sitemap">Sitemap</a>
+        </section>
+        <section class="footer-column">
+          <h2>Legal</h2>
+          <a class="footer-link" href="/copyright">Copyright</a>
+          <a class="footer-link" href="/privacy">Privacy</a>
+          <a class="footer-link" href="/terms">Terms</a>
+        </section>
+      </div>
+      <p class="fine footer-legal-line">Copyright <span id="currentYear"></span> <span data-bind="productName">SQLinq</span>. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script>
+    loadGithubLive(true);
+  </script>
+</body>
+</html>

@@ -9,8 +9,37 @@ const app = express();
 const PORT = Number(process.env.PORT || 5173);
 const root = __dirname;
 
+const CLEAN_ROUTES = {
+  "/": "index.html",
+  "/release-planning": "release-planning.html",
+  "/about": "about.html",
+  "/contact": "contact.html",
+  "/copyright": "copyright.html",
+  "/privacy": "privacy.html",
+  "/terms": "terms.html",
+  "/sitemap": "sitemap.html",
+  "/github-stats": "github-stats.html",
+  "/visual-workflow": "visual-workflow.html",
+  "/metric-details": "metric-details.html",
+};
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(root));
+
+Object.entries(CLEAN_ROUTES).forEach(([route, file]) => {
+  if (route === "/") return;
+  app.get(route, (_req, res) => {
+    res.sendFile(path.join(root, file));
+  });
+});
+
+app.get("/:page.html", (req, res, next) => {
+  const page = `/${req.params.page.toLowerCase()}`;
+  if (Object.prototype.hasOwnProperty.call(CLEAN_ROUTES, page)) {
+    return res.redirect(301, page);
+  }
+  return next();
+});
 
 function dbEnabled() {
   return Boolean(process.env.DATABASE_URL);

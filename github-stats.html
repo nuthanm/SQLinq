@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SQLinq GitHub Stats</title>
+  <meta name="description" content="Live GitHub stars, forks, pull requests, issues, and commit activity for SQLinq." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" id="siteFavicon" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/site-config.js"></script>
+</head>
+<body class="doc-page">
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header" id="top">
+    <div class="shell header-inner">
+      <a class="brand" href="/" aria-label="Back to home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name" data-bind="productName">SQLinq</span>
+      </a>
+      <nav class="nav" aria-label="Page navigation">
+        <a class="nav-link" href="/">Home</a>
+        <a class="nav-link" href="/visual-workflow">Visual workflow</a>
+        <a class="nav-link" href="/metric-details">Metric details</a>
+        <a class="nav-link is-active" href="/github-stats">GitHub stats</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="page-hero shell">
+      <p class="eyebrow">Transparency</p>
+      <h1>Live GitHub stats</h1>
+      <p class="lede">Stars, forks, pull requests, open issues, and commit activity are loaded directly from the public repository API.</p>
+      <p class="page-note">Since <time id="liveSinceLabel" datetime=""></time> · refreshed from GitHub API</p>
+    </section>
+
+    <div class="shell metrics" id="liveMetrics">
+      <div class="metric">
+        <span class="metric-value" id="statStars">-</span>
+        <span class="metric-label">Stars</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="statForks">-</span>
+        <span class="metric-label">Forks</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="statPullRequests">-</span>
+        <span class="metric-label">Open pull requests</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="statIssues">-</span>
+        <span class="metric-label">Open issues</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="statCommits">-</span>
+        <span class="metric-label">Commits loaded</span>
+      </div>
+    </div>
+
+    <div class="shell panel">
+      <div class="panel-head">
+        <h2>Commit activity heatmap</h2>
+        <span class="live-pill" id="livePill">Loading live data...</span>
+      </div>
+      <div class="heat-legend">
+        <span>Less</span>
+        <i class="heat-0"></i><i class="heat-1"></i><i class="heat-2"></i><i class="heat-3"></i><i class="heat-4"></i>
+        <span>More</span>
+      </div>
+      <div class="heatmap" id="commitHeatmap" aria-label="Commit heatmap"></div>
+      <p class="caption" id="heatCaption">Source: GitHub API</p>
+    </div>
+
+    <div class="shell panel">
+      <div class="panel-head">
+        <h2>Live commit grid</h2>
+        <label class="since-filter">
+          Since
+          <input type="date" id="sinceDate" value="" />
+        </label>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="commitTable">
+          <thead>
+            <tr>
+              <th>SHA</th>
+              <th>Date</th>
+              <th>Author</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="4">Loading commits from GitHub...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="caption" id="commitCaption">Live data from GitHub</p>
+      <div class="panel-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="refreshGithub">Refresh live stats</button>
+        <a class="btn btn-primary btn-sm" id="githubCommitsLink" href="#" target="_blank" rel="noopener">Open commits on GitHub</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div class="footer-grid" aria-label="Footer links">
+        <section class="footer-column">
+          <h2>Actions</h2>
+          <a class="footer-link" href="/visual-workflow">Visual workflow</a>
+          <a class="footer-link" href="/github-stats">GitHub stats</a>
+          <a class="footer-link" href="/metric-details">Metric details</a>
+        </section>
+        <section class="footer-column">
+          <h2>Company</h2>
+          <a class="footer-link" href="/about">About us</a>
+          <a class="footer-link" href="/contact">Contact</a>
+          <a class="footer-link" href="/sitemap">Sitemap</a>
+        </section>
+        <section class="footer-column">
+          <h2>Legal</h2>
+          <a class="footer-link" href="/copyright">Copyright</a>
+          <a class="footer-link" href="/privacy">Privacy</a>
+          <a class="footer-link" href="/terms">Terms</a>
+        </section>
+      </div>
+      <p class="fine footer-legal-line">Copyright <span id="currentYear"></span> <span data-bind="productName">SQLinq</span>. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script>
+    loadGithubLive(true);
+  </script>
+</body>
+</html>

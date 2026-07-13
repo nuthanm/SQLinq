@@ -977,7 +977,9 @@ window.addEventListener("scroll", updateScrollControls, { passive: true });
 window.addEventListener("resize", updateScrollControls);
 
 applyBranding();
-loadQualityDashboard();
+if (document.getElementById("qaTable")) {
+  loadQualityDashboard();
+}
 updateScrollControls();
 
 function syncViewFromHash() {

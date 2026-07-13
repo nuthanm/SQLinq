@@ -6,8 +6,7 @@
       "use": "@vercel/node",
       "config": {
         "includeFiles": [
-          "index.html",
-          "release-planning.html",
+          "*.html",
           "assets/**",
           "css/**",
           "js/**",

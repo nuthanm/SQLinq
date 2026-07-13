@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SQLinq Visual Workflow</title>
+  <meta name="description" content="Visual SQL to LINQ workflow from parse to final emitted query." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="release-page">
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header" id="top">
+    <div class="shell header-inner">
+      <a class="brand" href="/" aria-label="Back to home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">SQLinq</span>
+      </a>
+      <nav class="nav" aria-label="Page navigation">
+        <a class="nav-link" href="/">Home</a>
+        <a class="nav-link is-active" href="/visual-workflow">Visual workflow</a>
+        <a class="nav-link" href="/github-stats">GitHub stats</a>
+        <a class="nav-link" href="/metric-details">Metric details</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="release-hero">
+      <div class="release-atmosphere" aria-hidden="true"></div>
+      <div class="shell release-hero-grid">
+        <div>
+          <p class="eyebrow">Pipeline view</p>
+          <h1>Visual workflow: SQL to LINQ</h1>
+          <p class="lede">A single-page workflow view showing how SQL text moves through parse, semantic binding, rewrite rules, and final LINQ emission.</p>
+        </div>
+        <aside class="release-summary" aria-label="Workflow summary">
+          <p class="summary-label">Current model</p>
+          <h2>Parse -> Bind -> Rewrite -> Emit</h2>
+          <ul>
+            <li>AST-driven conversion</li>
+            <li>Entity-aware symbol binding</li>
+            <li>Deterministic LINQ output</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section section-muted" id="translation-flow">
+      <div class="shell">
+        <header class="section-head">
+          <h2>How translation happens</h2>
+          <p>Animated view of the SQL to LINQ pipeline: parse, bind, rewrite, and emit.</p>
+        </header>
+
+        <div class="translation-stage" aria-label="Animated SQL to LINQ translation">
+          <div class="translation-track" aria-hidden="true">
+            <span class="pulse-dot"></span>
+            <span class="pulse-dot"></span>
+            <span class="pulse-dot"></span>
+          </div>
+
+          <article class="flow-column">
+            <h3>1. Parse SQL</h3>
+            <p>Read SQL text and create a structured AST.</p>
+            <pre><code>SELECT c.Name
+FROM Customers c
+WHERE c.IsActive = 1</code></pre>
+          </article>
+
+          <article class="flow-column">
+            <h3>2. Bind Meaning</h3>
+            <p>Resolve table and column symbols to model entities.</p>
+            <ul>
+              <li>Customers -> Customer</li>
+              <li>Name -> Customer.Name</li>
+              <li>IsActive -> Customer.IsActive</li>
+            </ul>
+          </article>
+
+          <article class="flow-column">
+            <h3>3. Rewrite Rules</h3>
+            <p>Convert relational intent to LINQ operations.</p>
+            <ul>
+              <li>WHERE -> .Where(...)</li>
+              <li>SELECT -> .Select(...)</li>
+            </ul>
+          </article>
+
+          <article class="flow-column">
+            <h3>4. Emit LINQ</h3>
+            <p>Generate ready-to-use C# LINQ output.</p>
+            <pre><code>customers
+  .Where(c => c.IsActive)
+  .Select(c => c.Name);</code></pre>
+          </article>
+
+          <div class="token-stream" aria-hidden="true">
+            <span class="token-token">SELECT</span>
+            <span class="token-token">FROM</span>
+            <span class="token-token">WHERE</span>
+          </div>
+        </div>
+
+        <div class="release-note-box">
+          <h3>Why this view matters</h3>
+          <p>Keeping this workflow isolated makes it easier for reviewers to map a bug to the exact conversion stage and open a precise issue.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div class="footer-grid" aria-label="Footer links">
+        <section class="footer-column">
+          <h2>Actions</h2>
+          <a class="footer-link" href="/visual-workflow">Visual workflow</a>
+          <a class="footer-link" href="/github-stats">GitHub stats</a>
+          <a class="footer-link" href="/metric-details">Metric details</a>
+        </section>
+        <section class="footer-column">
+          <h2>Planning</h2>
+          <a class="footer-link" href="/release-planning">Release planning</a>
+          <a class="footer-link" href="/release-planning#release-plan">Release timeline</a>
+          <a class="footer-link" href="/release-planning#translation-flow">Planning flow</a>
+        </section>
+        <section class="footer-column">
+          <h2>Company</h2>
+          <a class="footer-link" href="/about">About us</a>
+          <a class="footer-link" href="/contact">Contact</a>
+          <a class="footer-link" href="/sitemap">Sitemap</a>
+        </section>
+      </div>
+      <p class="fine footer-legal-line">Copyright 2026 SQLinq. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>
