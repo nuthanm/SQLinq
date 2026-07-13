@@ -6,6 +6,10 @@
   "scripts": {
     "sync-config": "node scripts/sync-config.mjs",
     "quality-report": "node scripts/generate-quality-report.mjs",
+    "failure-issues": "node scripts/create-failure-issues.mjs",
+    "release-update": "npm run quality-report && npm run failure-issues && node scripts/generate-release-updates.mjs",
+    "release-update-only": "node scripts/generate-release-updates.mjs",
+    "release-compare": "node scripts/compare-release-updates.mjs",
     "import-quality": "node scripts/import-quality-report.mjs",
     "start": "npm run sync-config && node server.js"
   },

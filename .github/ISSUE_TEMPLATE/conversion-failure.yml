@@ -1,0 +1,120 @@
+name: Conversion Failure Report
+description: Report a SQL to LINQ conversion failure with reproducible details.
+title: "[Conversion Failure]: <query-id> <short-summary>"
+labels:
+  - bug
+  - conversion
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for parser/converter failures. Please include sanitized SQL only.
+  - type: input
+    id: query_id
+    attributes:
+      label: Query ID
+      description: Query identifier from benchmark or telemetry (for example Q014).
+      placeholder: Q014
+    validations:
+      required: true
+  - type: input
+    id: query_title
+    attributes:
+      label: Query Title
+      description: Short title for the query shape.
+      placeholder: Select with filter and descending sort
+    validations:
+      required: true
+  - type: dropdown
+    id: failure_stage
+    attributes:
+      label: Failure Stage
+      options:
+        - Parser
+        - Converter
+        - Partial conversion
+    validations:
+      required: true
+  - type: input
+    id: syntax_target
+    attributes:
+      label: Syntax Target
+      description: method, query, or ef
+      placeholder: method
+    validations:
+      required: true
+  - type: input
+    id: connectivity_mode
+    attributes:
+      label: Connectivity Mode
+      description: with or without
+      placeholder: without
+    validations:
+      required: true
+  - type: input
+    id: database_tag
+    attributes:
+      label: Database Tag
+      description: sqlserver, postgres, postgress, etc.
+      placeholder: sqlserver
+    validations:
+      required: true
+  - type: textarea
+    id: sql_input
+    attributes:
+      label: SQL Input (sanitized)
+      description: Provide the exact SQL that triggers the failure.
+      render: sql
+    validations:
+      required: true
+  - type: textarea
+    id: observed_output
+    attributes:
+      label: Observed Output / Error
+      description: Include conversion output or failure message.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected_output
+    attributes:
+      label: Expected LINQ Output
+      description: Describe expected behavior.
+      render: csharp
+  - type: textarea
+    id: reproduction_steps
+    attributes:
+      label: Reproduction Steps
+      description: Numbered steps to reproduce.
+      value: |
+        1. Open SQLinq converter.
+        2. Select target syntax.
+        3. Paste SQL query.
+        4. Run convert.
+        5. Observe failure.
+    validations:
+      required: true
+  - type: textarea
+    id: telemetry_snapshot
+    attributes:
+      label: Telemetry Snapshot
+      description: Add fingerprint/status/timing details if available.
+      render: json
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact Assessment
+      description: What is blocked and how severe it is.
+      placeholder: Blocks customer conversion flow for filtered descending sort queries.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Validation Checklist
+      options:
+        - label: SQL and LINQ content is sanitized (no secrets).
+          required: true
+        - label: Query reproduces consistently.
+          required: true
+        - label: Expected output verified by reviewer.
+          required: false

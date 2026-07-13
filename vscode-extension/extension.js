@@ -38,6 +38,28 @@ function fnv1a32(value) {
   return hash.toString(16).padStart(8, '0');
 }
 
+const queryRunStats = new Map();
+
+function recordQueryRun(queryFingerprint, timeMs) {
+  const key = String(queryFingerprint || '').trim();
+  if (!key) {
+    return {
+      queryRunCount: 0,
+      queryAverageMs: Number(timeMs || 0),
+    };
+  }
+
+  const previous = queryRunStats.get(key) || { count: 0, totalMs: 0 };
+  const nextCount = previous.count + 1;
+  const nextTotalMs = previous.totalMs + Number(timeMs || 0);
+  queryRunStats.set(key, { count: nextCount, totalMs: nextTotalMs });
+
+  return {
+    queryRunCount: nextCount,
+    queryAverageMs: Math.round((nextTotalMs / nextCount) * 100) / 100,
+  };
+}
+
 function buildSafeQuerySummary(sqlText) {
   const compact = String(sqlText || '')
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -56,6 +78,46 @@ function buildSafeQuerySummary(sqlText) {
   const hasOrderBy = clauses.includes('ORDER BY');
   const hasDistinct = /\bselect\s+distinct\b/i.test(compact);
   const hasWildcard = /^\s*select\s+(?:distinct\s+)?\*\s+from\b/i.test(compact);
+  const whereMatch = compact.match(/\bwhere\b([\s\S]*?)(?=\border\s+by\b|\bgroup\s+by\b|\bhaving\b|$)/i);
+  const whereText = whereMatch && whereMatch[1] ? String(whereMatch[1]).trim() : '';
+  const hasLikeFilter = /\blike\b/i.test(whereText);
+  const hasNullCheckFilter = /\bis\s+(?:not\s+)?null\b/i.test(whereText);
+  const hasMultiConditionFilter = /\b(and|or)\b/i.test(whereText);
+  const filterProfile = !hasWhere
+    ? 'none'
+    : hasLikeFilter
+      ? 'like'
+      : hasNullCheckFilter
+        ? 'null-check'
+        : hasMultiConditionFilter
+          ? 'multi-condition'
+          : 'basic';
+
+  let filterLabel = 'filter';
+  if (filterProfile === 'like') filterLabel = 'LIKE filter';
+  else if (filterProfile === 'null-check') filterLabel = 'NULL check filter';
+  else if (filterProfile === 'multi-condition') filterLabel = 'multi-condition filter';
+
+  let sortDirection = 'none';
+  if (hasOrderBy) {
+    const orderMatch = compact.match(/\border\s+by\b([\s\S]*)$/i);
+    const orderParts = orderMatch && orderMatch[1] ? orderMatch[1].split(',') : [];
+    let sawAsc = false;
+    let sawDesc = false;
+    for (const part of orderParts) {
+      const token = String(part || '').trim();
+      if (!token) continue;
+      if (/\bdesc\b/i.test(token)) {
+        sawDesc = true;
+      } else {
+        // Default SQL ordering is ascending when direction is omitted.
+        sawAsc = true;
+      }
+    }
+    if (sawAsc && sawDesc) sortDirection = 'mixed';
+    else if (sawDesc) sortDirection = 'desc';
+    else sortDirection = 'asc';
+  }
   const fromMatch = compact.match(/\bfrom\s+([^\s,;]+)(?:\s+(?:as\s+)?([a-z_][\w$]*))?/i);
   const aliasCandidate = fromMatch ? String(fromMatch[2] || '').trim() : '';
   const hasAlias = Boolean(aliasCandidate) && !/^(where|order|group|having|join|inner|left|right|full|cross|union|intersect|except)$/i.test(aliasCandidate);
@@ -64,6 +126,17 @@ function buildSafeQuerySummary(sqlText) {
   queryElementsDetailed.push(hasWildcard ? 'SELECT ALL' : 'COLUMN PROJECTION');
   if (hasAlias) queryElementsDetailed.push('TABLE ALIAS');
   if (hasDistinct) queryElementsDetailed.push('DISTINCT');
+  if (hasWhere) {
+    if (filterProfile === 'like') queryElementsDetailed.push('FILTER LIKE');
+    else if (filterProfile === 'null-check') queryElementsDetailed.push('FILTER NULL CHECK');
+    else if (filterProfile === 'multi-condition') queryElementsDetailed.push('FILTER MULTI-CONDITION');
+    else queryElementsDetailed.push('FILTER BASIC');
+  }
+  if (hasOrderBy) {
+    if (sortDirection === 'desc') queryElementsDetailed.push('ORDER DESCENDING');
+    else if (sortDirection === 'mixed') queryElementsDetailed.push('ORDER MIXED DIRECTIONS');
+    else queryElementsDetailed.push('ORDER ASCENDING');
+  }
 
   let queryTypeLabel = 'Basic select with column names';
   if (hasWildcard) {
@@ -72,25 +145,61 @@ function buildSafeQuerySummary(sqlText) {
     queryTypeLabel = 'Basic select with column names using alias';
   }
   if (hasWhere && hasOrderBy) {
-    queryTypeLabel = hasAlias
-      ? 'Select with alias, filter, and sort'
-      : 'Select with filter and sort';
+    if (sortDirection === 'desc') {
+      queryTypeLabel = hasAlias
+        ? `Select with alias, ${filterLabel}, and descending sort`
+        : `Select with ${filterLabel} and descending sort`;
+    } else if (sortDirection === 'mixed') {
+      queryTypeLabel = hasAlias
+        ? `Select with alias, ${filterLabel}, and mixed sort directions`
+        : `Select with ${filterLabel} and mixed sort directions`;
+    } else {
+      queryTypeLabel = hasAlias
+        ? `Select with alias, ${filterLabel}, and ascending sort`
+        : `Select with ${filterLabel} and ascending sort`;
+    }
   } else if (hasWhere) {
     queryTypeLabel = hasAlias
-      ? 'Select with alias and filter'
-      : 'Select with filter';
+      ? `Select with alias and ${filterLabel}`
+      : `Select with ${filterLabel}`;
   } else if (hasOrderBy) {
-    queryTypeLabel = hasAlias
-      ? 'Select with alias and sort'
-      : 'Select with sort';
+    if (sortDirection === 'desc') {
+      queryTypeLabel = hasAlias
+        ? 'Select with alias and descending sort'
+        : 'Select with descending sort';
+    } else if (sortDirection === 'mixed') {
+      queryTypeLabel = hasAlias
+        ? 'Select with alias and mixed sort directions'
+        : 'Select with mixed sort directions';
+    } else {
+      queryTypeLabel = hasAlias
+        ? 'Select with alias and ascending sort'
+        : 'Select with ascending sort';
+    }
   }
   if (hasDistinct) {
-    queryTypeLabel = hasWhere ? 'Distinct select with filter' : 'Distinct select';
+    if (hasWhere && hasOrderBy) {
+      if (sortDirection === 'desc') {
+        queryTypeLabel = `Distinct select with ${filterLabel} and descending sort`;
+      } else if (sortDirection === 'mixed') {
+        queryTypeLabel = `Distinct select with ${filterLabel} and mixed sort directions`;
+      } else {
+        queryTypeLabel = `Distinct select with ${filterLabel} and ascending sort`;
+      }
+    } else if (hasWhere) {
+      queryTypeLabel = `Distinct select with ${filterLabel}`;
+    } else {
+      queryTypeLabel = 'Distinct select';
+    }
   }
 
+  const queryFingerprint = `f${fnv1a32(compact)}`;
+  const queryTitle = `SQLinq ${queryFingerprint}: ${queryTypeLabel}`;
+
   return {
-    queryFingerprint: `f${fnv1a32(compact)}`,
-    querySummary: queryTypeLabel,
+    queryFingerprint,
+    queryTitle,
+    querySummary: queryTitle,
     queryTypeLabel,
     sqlLength: compact.length,
     clauseProfile: clauses,
@@ -277,17 +386,20 @@ async function convertSelectionDirect(editor, target = 'method') {
   const start = Date.now();
   const result = convertSqlToLinq(sqlText, target);
   const safeSummary = buildSafeQuerySummary(sqlText);
+  const elapsedMs = Date.now() - start;
+  const runMetrics = recordQueryRun(safeSummary.queryFingerprint, elapsedMs);
   if (!result.ok) {
-    vscode.window.showErrorMessage(result.error);
+    vscode.window.showErrorMessage(`${safeSummary.queryTitle}. ${result.error}`);
     await sendConversionEvent({
       connectivityMode: 'without',
       target,
       ...safeSummary,
+      ...runMetrics,
       parseStatus: 'Fail',
       convertStatus: 'Fail',
       correctness: 0,
       exactMatch: false,
-      timeMs: Date.now() - start,
+      timeMs: elapsedMs,
       issue: null,
       message: result.error,
     });
@@ -298,17 +410,18 @@ async function convertSelectionDirect(editor, target = 'method') {
     editBuilder.replace(selection, result.output);
   });
 
-  vscode.window.showInformationMessage(`Quick convert complete. ${result.status}`);
+  vscode.window.showInformationMessage(`Quick convert complete. ${safeSummary.queryTitle}. Runs: ${runMetrics.queryRunCount}, average: ${runMetrics.queryAverageMs} ms. ${result.status}`);
   const inferred = inferStatuses(result);
   const sync = await sendConversionEvent({
     connectivityMode: 'without',
     target,
     ...safeSummary,
+    ...runMetrics,
     parseStatus: inferred.parseStatus,
     convertStatus: inferred.convertStatus,
     correctness: inferred.correctness,
     exactMatch: inferred.exactMatch,
-    timeMs: Date.now() - start,
+    timeMs: elapsedMs,
     issue: null,
     message: result.status,
   });
@@ -511,11 +624,18 @@ function activate(context) {
         const start = Date.now();
         const result = buildInitialConversion(message.sql || SAMPLE_SQL, message.target || 'method');
         const safeSummary = buildSafeQuerySummary(message.sql || SAMPLE_SQL);
+        const elapsedMs = Date.now() - start;
+        const runMetrics = message.type === 'convert'
+          ? recordQueryRun(safeSummary.queryFingerprint, elapsedMs)
+          : { queryRunCount: 0, queryAverageMs: 0 };
+        const metricsText = message.type === 'convert'
+          ? ` Runs: ${runMetrics.queryRunCount}, average: ${runMetrics.queryAverageMs} ms.`
+          : '';
         panel.webview.postMessage({
           type: 'result',
           status: result.ok
-            ? `${result.status} Mode: ${connectivity.label}.`
-            : `${result.error} Mode: ${connectivity.label}.`,
+            ? `${safeSummary.queryTitle}. ${result.status}.${metricsText} Mode: ${connectivity.label}.`
+            : `${safeSummary.queryTitle}. ${result.error}.${metricsText} Mode: ${connectivity.label}.`,
           output: result.ok ? result.output : '',
           outputs: connectivity.outputs,
         });
@@ -530,11 +650,12 @@ function activate(context) {
             connectivityMode,
             target: message.target || 'method',
             ...safeSummary,
+            ...runMetrics,
             parseStatus: inferred.parseStatus,
             convertStatus: inferred.convertStatus,
             correctness: inferred.correctness,
             exactMatch: inferred.exactMatch,
-            timeMs: Date.now() - start,
+            timeMs: elapsedMs,
             issue: null,
             message: result.ok ? result.status : result.error,
           });
@@ -604,17 +725,20 @@ function activate(context) {
     const start = Date.now();
     const result = convertSqlToLinq(sqlText, target.value);
     const safeSummary = buildSafeQuerySummary(sqlText);
+    const elapsedMs = Date.now() - start;
+    const runMetrics = recordQueryRun(safeSummary.queryFingerprint, elapsedMs);
     if (!result.ok) {
-      vscode.window.showErrorMessage(result.error);
+      vscode.window.showErrorMessage(`${safeSummary.queryTitle}. ${result.error}`);
       await sendConversionEvent({
         connectivityMode: 'without',
         target: target.value,
         ...safeSummary,
+        ...runMetrics,
         parseStatus: 'Fail',
         convertStatus: 'Fail',
         correctness: 0,
         exactMatch: false,
-        timeMs: Date.now() - start,
+        timeMs: elapsedMs,
         issue: null,
         message: result.error,
       });
@@ -629,17 +753,18 @@ function activate(context) {
       }
     });
 
-    vscode.window.showInformationMessage(result.status);
+    vscode.window.showInformationMessage(`${safeSummary.queryTitle}. Runs: ${runMetrics.queryRunCount}, average: ${runMetrics.queryAverageMs} ms. ${result.status}`);
     const inferred = inferStatuses(result);
     const sync = await sendConversionEvent({
       connectivityMode: 'without',
       target: target.value,
       ...safeSummary,
+      ...runMetrics,
       parseStatus: inferred.parseStatus,
       convertStatus: inferred.convertStatus,
       correctness: inferred.correctness,
       exactMatch: inferred.exactMatch,
-      timeMs: Date.now() - start,
+      timeMs: elapsedMs,
       issue: null,
       message: result.status,
     });

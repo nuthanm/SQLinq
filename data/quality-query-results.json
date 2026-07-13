@@ -102,5 +102,44 @@
     "issue": null,
     "failureReason": null,
     "releaseBucket": "v0.2.0"
+  },
+  {
+    "id": "Q009",
+    "name": "Edge case - CROSS APPLY top-one",
+    "area": "Edge case failures",
+    "parserOk": true,
+    "converterOk": false,
+    "exactMatch": false,
+    "correctness": 61,
+    "timeMs": 33,
+    "issue": "#58",
+    "failureReason": "CROSS APPLY lowering is not implemented in converter emitter",
+    "releaseBucket": "v0.4.0"
+  },
+  {
+    "id": "Q010",
+    "name": "Edge case - recursive CTE with aggregate",
+    "area": "Edge case failures",
+    "parserOk": "partial",
+    "converterOk": false,
+    "exactMatch": false,
+    "correctness": 52,
+    "timeMs": 36,
+    "issue": "#59",
+    "failureReason": "Recursive CTE with aggregate rewrite loses hierarchy projection semantics",
+    "releaseBucket": "v0.4.0"
+  },
+  {
+    "id": "Q011",
+    "name": "Edge case - window rank subquery",
+    "area": "Edge case failures",
+    "parserOk": true,
+    "converterOk": "partial",
+    "exactMatch": false,
+    "correctness": 82,
+    "timeMs": 29,
+    "issue": "#60",
+    "failureReason": "Window function rewrite emits incomplete ordering chain in nested query",
+    "releaseBucket": "v0.4.0"
   }
 ]

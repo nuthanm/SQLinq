@@ -449,6 +449,12 @@ function normalizeQualityRows(rows) {
     });
 }
 
+function isEdgeCaseRow(row) {
+  const area = String(row?.area || "").toLowerCase();
+  const name = String(row?.name || "").toLowerCase();
+  return area.includes("edge") || name.includes("edge case") || name.includes("edge-case");
+}
+
 function targetLabel(target) {
   if (target === "query") return "Query syntax";
   if (target === "ef") return "EF Core IQueryable";
@@ -461,9 +467,39 @@ function connectivityLabel(mode) {
 }
 
 function databaseLabel(dbType) {
-  if (!dbType || dbType === "without" || dbType === "none") return "Without database";
-  if (dbType === "connected") return "Connected (type not reported)";
-  return `Reported: ${dbType.toUpperCase()}`;
+  const normalized = String(dbType || "").trim().toLowerCase();
+  if (!normalized || normalized === "without" || normalized === "none") return "Without database";
+  if (normalized === "connected") return "Connected (type not reported)";
+  if (normalized === "sqlserver" || normalized === "mssql" || normalized === "sql server") return "SQL SERVER";
+  if (normalized === "postgres" || normalized === "postgresql" || normalized === "postgress") return "POSTGRESS";
+  return `Reported: ${normalized.toUpperCase()}`;
+}
+
+function ensureDefaultDatabaseGroups(groups) {
+  const defaults = ["sqlserver", "postgress"];
+  const byKey = new Map((groups || []).map((g) => [String(g.key || "").toLowerCase(), g]));
+
+  defaults.forEach((key) => {
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        key,
+        total: 0,
+        exactRate: 0,
+        avgCorrectness: 0,
+        avgTime: 0,
+      });
+    }
+  });
+
+  const ordered = [];
+  defaults.forEach((key) => {
+    const item = byKey.get(key);
+    if (item) ordered.push(item);
+    byKey.delete(key);
+  });
+
+  const remaining = [...byKey.values()].sort((a, b) => b.total - a.total);
+  return [...ordered, ...remaining];
 }
 
 function summarizeGroups(rows, keySelector) {
@@ -618,7 +654,7 @@ function renderTimeTrendChart(rows) {
 }
 
 function renderSegmentedMetrics(rows) {
-  const byDb = summarizeGroups(rows, (row) => row.databaseType);
+  const byDb = ensureDefaultDatabaseGroups(summarizeGroups(rows, (row) => row.databaseType));
   const byConnectivity = summarizeGroups(rows, (row) => row.connectivityMode);
   const byTarget = summarizeGroups(rows, (row) => row.target);
 
@@ -664,6 +700,9 @@ function renderQualityDashboard(report) {
       "qaPartials",
       "qaIssueCoverage",
       "qaNextReleaseFocus",
+      "qaEdgeTotal",
+      "qaEdgeFailures",
+      "qaEdgeFixRate",
     ].forEach((id) => set(id, "-"));
 
     const body = document.querySelector("#qaTable tbody");
@@ -683,6 +722,8 @@ function renderQualityDashboard(report) {
   const failures = rows.filter((row) => row.convertStatus === "Fail" || row.status === "Failed");
   const parserFailures = rows.filter((row) => row.parseStatus === "Fail");
   const partials = rows.filter((row) => row.parseStatus === "Partial" || row.convertStatus === "Partial" || row.status === "Partial");
+  const edgeRows = rows.filter((row) => isEdgeCaseRow(row));
+  const edgeFailures = edgeRows.filter((row) => row.convertStatus === "Fail" || row.status === "Failed");
   const issueLinked = failures.filter((row) => row.issue).length;
   const correctnessAvg = rows.reduce((sum, row) => sum + row.correctness, 0) / total;
   const exactRate = (exact / total) * 100;
@@ -714,6 +755,9 @@ function renderQualityDashboard(report) {
   set("qaPartials", `${partials.length}/${total}`);
   set("qaIssueCoverage", failures.length ? `${((issueLinked / failures.length) * 100).toFixed(1)}%` : "100%");
   set("qaNextReleaseFocus", rankFailureAreas(failures).join(" + ") || "Stabilization");
+  set("qaEdgeTotal", `${edgeRows.length}/${total}`);
+  set("qaEdgeFailures", `${edgeFailures.length}/${edgeRows.length || 0}`);
+  set("qaEdgeFixRate", edgeRows.length ? `${(((edgeRows.length - edgeFailures.length) / edgeRows.length) * 100).toFixed(1)}%` : "n/a");
 
   const body = document.querySelector("#qaTable tbody");
   if (body) {
@@ -778,6 +822,354 @@ function setupMetricsViewToggle() {
       });
     });
   });
+}
+
+function setReleaseUpdatesPill(text, mode = "live") {
+  const pill = document.getElementById("releaseUpdatesPill");
+  if (!pill) return;
+  pill.textContent = text;
+  pill.classList.remove("is-live", "is-error");
+  pill.classList.add(mode === "error" ? "is-error" : "is-live");
+}
+
+function setReleaseComparePill(text, mode = "live") {
+  const pill = document.getElementById("releaseComparePill");
+  if (!pill) return;
+  pill.textContent = text;
+  pill.classList.remove("is-live", "is-error");
+  pill.classList.add(mode === "error" ? "is-error" : "is-live");
+}
+
+let currentReleaseCompare = null;
+
+function renderIssueList(id, values) {
+  const root = document.getElementById(id);
+  if (!root) return;
+  const list = Array.isArray(values) ? values : [];
+  if (!list.length) {
+    root.innerHTML = "<li>None</li>";
+    return;
+  }
+  root.innerHTML = list.map((v) => `<li>${escapeHtml(String(v))}</li>`).join("");
+}
+
+function issueSet(values) {
+  return new Set((values || []).map((v) => String(v || "").trim()).filter(Boolean));
+}
+
+function buildCompareFromRecords(fromRelease, toRelease) {
+  if (!fromRelease || !toRelease) return null;
+
+  const fromOpen = issueSet(fromRelease.openIssues);
+  const toOpen = issueSet(toRelease.openIssues);
+  const fixedIssues = [...fromOpen].filter((issue) => !toOpen.has(issue));
+  const newIssues = [...toOpen].filter((issue) => !fromOpen.has(issue));
+  const persistentIssues = [...toOpen].filter((issue) => fromOpen.has(issue));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    fromRelease: {
+      releaseTag: fromRelease.releaseTag,
+      generatedAt: fromRelease.generatedAt,
+      totalQueries: Number(fromRelease.totalQueries || 0),
+      failures: Number(fromRelease.failures || 0),
+      edgeCaseFailures: Number(fromRelease.edgeCaseFailures || 0),
+      openIssueCount: fromOpen.size,
+    },
+    toRelease: {
+      releaseTag: toRelease.releaseTag,
+      generatedAt: toRelease.generatedAt,
+      totalQueries: Number(toRelease.totalQueries || 0),
+      failures: Number(toRelease.failures || 0),
+      edgeCaseFailures: Number(toRelease.edgeCaseFailures || 0),
+      openIssueCount: toOpen.size,
+    },
+    deltas: {
+      totalQueries: Number(toRelease.totalQueries || 0) - Number(fromRelease.totalQueries || 0),
+      failures: Number(toRelease.failures || 0) - Number(fromRelease.failures || 0),
+      edgeCaseFailures: Number(toRelease.edgeCaseFailures || 0) - Number(fromRelease.edgeCaseFailures || 0),
+      openIssues: toOpen.size - fromOpen.size,
+    },
+    fixedIssues,
+    fixedIssueCount: fixedIssues.length,
+    newIssues,
+    newIssueCount: newIssues.length,
+    persistentIssues,
+    persistentIssueCount: persistentIssues.length,
+  };
+}
+
+function populateReleaseCompareControls(records) {
+  const fromSelect = document.getElementById("releaseCompareFrom");
+  const toSelect = document.getElementById("releaseCompareTo");
+  const runBtn = document.getElementById("releaseCompareRun");
+  const saveBtn = document.getElementById("releaseCompareSave");
+  if (!(fromSelect instanceof HTMLSelectElement) || !(toSelect instanceof HTMLSelectElement)) return;
+
+  const list = Array.isArray(records) ? records : [];
+  fromSelect.innerHTML = "";
+  toSelect.innerHTML = "";
+
+  if (!list.length) {
+    fromSelect.disabled = true;
+    toSelect.disabled = true;
+    if (runBtn instanceof HTMLButtonElement) runBtn.disabled = true;
+    if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = true;
+    return;
+  }
+
+  list.forEach((r, idx) => {
+    const tag = String(r.releaseTag || `release-${idx + 1}`);
+    const label = `${tag} (${r.generatedAt ? new Date(r.generatedAt).toLocaleDateString() : "n/a"})`;
+    const optA = document.createElement("option");
+    optA.value = tag;
+    optA.textContent = label;
+    const optB = document.createElement("option");
+    optB.value = tag;
+    optB.textContent = label;
+    fromSelect.appendChild(optA);
+    toSelect.appendChild(optB);
+  });
+
+  fromSelect.disabled = false;
+  toSelect.disabled = false;
+  if (runBtn instanceof HTMLButtonElement) runBtn.disabled = false;
+  if (saveBtn instanceof HTMLButtonElement) {
+    saveBtn.disabled = false;
+    saveBtn.onclick = saveCurrentReleaseCompare;
+  }
+
+  toSelect.selectedIndex = 0;
+  fromSelect.selectedIndex = list.length > 1 ? 1 : 0;
+
+  const runCompare = () => {
+    const fromTag = fromSelect.value;
+    const toTag = toSelect.value;
+    const fromRelease = list.find((r) => String(r.releaseTag) === fromTag) || null;
+    const toRelease = list.find((r) => String(r.releaseTag) === toTag) || null;
+
+    if (!fromRelease || !toRelease) {
+      renderReleaseCompare(null);
+      setReleaseComparePill("Invalid release selection", "error");
+      return;
+    }
+    if (fromTag === toTag) {
+      renderReleaseCompare(null);
+      setReleaseComparePill("Choose two different releases", "error");
+      return;
+    }
+
+    const compare = buildCompareFromRecords(fromRelease, toRelease);
+    renderReleaseCompare(compare);
+    setReleaseComparePill(`Compared ${fromTag} -> ${toTag}`, "live");
+  };
+
+  fromSelect.onchange = runCompare;
+  toSelect.onchange = runCompare;
+  if (runBtn instanceof HTMLButtonElement) {
+    runBtn.onclick = runCompare;
+  }
+}
+
+function renderReleaseCompare(compare) {
+  const body = document.querySelector("#releaseCompareTable tbody");
+  if (!body) return;
+
+  if (!compare || !compare.fromRelease || !compare.toRelease || !compare.deltas) {
+    currentReleaseCompare = null;
+    body.innerHTML = '<tr><td colspan="8">No explicit compare data available yet.</td></tr>';
+    renderIssueList("releaseCompareFixedList", []);
+    renderIssueList("releaseCompareNewList", []);
+    renderIssueList("releaseComparePersistentList", []);
+    return;
+  }
+
+  currentReleaseCompare = compare;
+
+  const fromTag = compare.fromRelease.releaseTag || "n/a";
+  const toTag = compare.toRelease.releaseTag || "n/a";
+  const openDelta = Number(compare.deltas.openIssues || 0);
+  const failDelta = Number(compare.deltas.failures || 0);
+  const edgeDelta = Number(compare.deltas.edgeCaseFailures || 0);
+  const openText = openDelta > 0 ? `+${openDelta}` : String(openDelta);
+  const failText = failDelta > 0 ? `+${failDelta}` : String(failDelta);
+  const edgeText = edgeDelta > 0 ? `+${edgeDelta}` : String(edgeDelta);
+
+  body.innerHTML = `<tr>
+    <td>${escapeHtml(fromTag)}</td>
+    <td>${escapeHtml(toTag)}</td>
+    <td>${openText}</td>
+    <td>${failText}</td>
+    <td>${edgeText}</td>
+    <td>${Number(compare.fixedIssueCount || 0)}</td>
+    <td>${Number(compare.newIssueCount || 0)}</td>
+    <td>${Number(compare.persistentIssueCount || 0)}</td>
+  </tr>`;
+
+  renderIssueList("releaseCompareFixedList", compare.fixedIssues);
+  renderIssueList("releaseCompareNewList", compare.newIssues);
+  renderIssueList("releaseComparePersistentList", compare.persistentIssues);
+}
+
+async function saveCurrentReleaseCompare() {
+  if (!currentReleaseCompare) {
+    setReleaseComparePill("Run compare before saving", "error");
+    return;
+  }
+
+  setReleaseComparePill("Saving compare snapshot...");
+  try {
+    const res = await fetch(apiUrl("/api/release-compare/save"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(currentReleaseCompare),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `save failed (${res.status})`);
+    }
+    setReleaseComparePill("Compare snapshot saved", "live");
+  } catch (err) {
+    setReleaseComparePill("Save failed", "error");
+    console.warn("Save compare snapshot failed:", err);
+  }
+}
+
+function renderReleaseUpdates(records) {
+  const body = document.querySelector("#releaseUpdatesTable tbody");
+  const deltaBody = document.querySelector("#releaseDeltaTable tbody");
+  const caption = document.getElementById("releaseUpdatesCaption");
+  const pushList = document.getElementById("releasePushList");
+  if (!body) return;
+
+  if (!Array.isArray(records) || !records.length) {
+    body.innerHTML = '<tr><td colspan="7">No release update records available yet.</td></tr>';
+    if (deltaBody) {
+      deltaBody.innerHTML = '<tr><td colspan="5">No issue delta history available yet.</td></tr>';
+    }
+    if (pushList) {
+      pushList.innerHTML = "<li>No push details available yet.</li>";
+    }
+    if (caption) {
+      caption.textContent = "Run npm run release-update to generate automatic release summary entries.";
+    }
+    return;
+  }
+
+  body.innerHTML = records
+    .slice(0, 8)
+    .map((r) => {
+      const total = Number(r.totalQueries || 0);
+      const exact = Number(r.exactMatches || 0);
+      const failures = Number(r.failures || 0);
+      const edgeFailures = Number(r.edgeCaseFailures || 0);
+      const fixed = Number(r.fixedIssueCount || 0);
+      const exactRate = total ? `${((exact / total) * 100).toFixed(1)}%` : "0.0%";
+      const generatedAt = r.generatedAt ? new Date(r.generatedAt).toLocaleString() : "n/a";
+      return `<tr>
+        <td>${escapeHtml(r.releaseTag || "n/a")}</td>
+        <td>${escapeHtml(generatedAt)}</td>
+        <td>${total}</td>
+        <td>${exactRate}</td>
+        <td>${failures}</td>
+        <td>${edgeFailures}</td>
+        <td>${fixed}</td>
+      </tr>`;
+    })
+    .join("");
+
+  if (deltaBody) {
+    deltaBody.innerHTML = records
+      .slice(0, 10)
+      .map((r, idx) => {
+        const openSet = new Set((r.openIssues || []).map((v) => String(v || "").trim()).filter(Boolean));
+        const prev = records[idx + 1] || null;
+        const prevSet = new Set((prev?.openIssues || []).map((v) => String(v || "").trim()).filter(Boolean));
+        const newInCycle = [...openSet].filter((issue) => !prevSet.has(issue));
+        const fixedInCycle = prev ? [...prevSet].filter((issue) => !openSet.has(issue)) : [];
+        const openDelta = prev ? openSet.size - prevSet.size : null;
+
+        return `<tr>
+          <td>${escapeHtml(r.releaseTag || "n/a")}</td>
+          <td>${openSet.size}</td>
+          <td>${newInCycle.length}</td>
+          <td>${fixedInCycle.length}</td>
+          <td>${openDelta == null ? "-" : (openDelta > 0 ? `+${openDelta}` : String(openDelta))}</td>
+        </tr>`;
+      })
+      .join("");
+  }
+
+  if (caption) {
+    const latest = records[0];
+    caption.textContent = `Latest: ${latest.releaseTag || "n/a"} · total ${latest.totalQueries || 0} · failures ${latest.failures || 0} · edge-case failures ${latest.edgeCaseFailures || 0} · fixed issues ${latest.fixedIssueCount || 0}.`;
+  }
+
+  if (pushList) {
+    const latest = records[0] || {};
+    const lines = Array.isArray(latest.pushedChanges) && latest.pushedChanges.length
+      ? latest.pushedChanges
+      : ["No generated push details available."];
+    pushList.innerHTML = lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  }
+}
+
+async function loadReleaseUpdates() {
+  if (!document.getElementById("releaseUpdatesTable")) return;
+  setReleaseUpdatesPill("Loading release updates...");
+  try {
+    const res = await fetch("/data/release-updates.json", { cache: "no-store" });
+    if (!res.ok) throw new Error(`release updates unavailable (${res.status})`);
+    const payload = await res.json();
+    const records = Array.isArray(payload?.releases) ? payload.releases : [];
+    renderReleaseUpdates(records);
+    setReleaseUpdatesPill("Auto-generated release updates", "live");
+  } catch (err) {
+    renderReleaseUpdates([]);
+    setReleaseUpdatesPill("Release updates unavailable", "error");
+    console.warn("Release updates load failed:", err);
+  }
+}
+
+async function loadReleaseCompare() {
+  if (!document.getElementById("releaseCompareTable")) return;
+  setReleaseComparePill("Loading release comparison...");
+  try {
+    const [compareRes, updatesRes] = await Promise.all([
+      fetch("/data/release-compare.json", { cache: "no-store" }),
+      fetch("/data/release-updates.json", { cache: "no-store" }),
+    ]);
+
+    let comparePayload = null;
+    if (compareRes.ok) comparePayload = await compareRes.json();
+
+    let releases = [];
+    if (updatesRes.ok) {
+      const updatesPayload = await updatesRes.json();
+      releases = Array.isArray(updatesPayload?.releases) ? updatesPayload.releases : [];
+      populateReleaseCompareControls(releases);
+    }
+
+    if (comparePayload && comparePayload.fromRelease && comparePayload.toRelease) {
+      renderReleaseCompare(comparePayload);
+      setReleaseComparePill("Explicit release compare", "live");
+      return;
+    }
+
+    if (releases.length >= 2) {
+      const fallbackCompare = buildCompareFromRecords(releases[1], releases[0]);
+      renderReleaseCompare(fallbackCompare);
+      setReleaseComparePill(`Compared ${releases[1].releaseTag} -> ${releases[0].releaseTag}`, "live");
+      return;
+    }
+
+    renderReleaseCompare(null);
+    setReleaseComparePill("No release history for compare", "error");
+  } catch (err) {
+    renderReleaseCompare(null);
+    setReleaseComparePill("Release compare unavailable", "error");
+    console.warn("Release compare load failed:", err);
+  }
 }
 
 async function loadQualityDashboard() {
@@ -1284,6 +1676,12 @@ applyBranding();
 setupMetricsViewToggle();
 if (document.getElementById("qaTable")) {
   loadQualityDashboard();
+}
+if (document.getElementById("releaseUpdatesTable")) {
+  loadReleaseUpdates();
+}
+if (document.getElementById("releaseCompareTable")) {
+  loadReleaseCompare();
 }
 updateScrollControls();
 

@@ -1,0 +1,61 @@
+{
+  "generatedAt": "2026-07-13T17:31:45.018Z",
+  "releases": [
+    {
+      "releaseTag": "v0.3.1",
+      "generatedAt": "2026-07-13T17:31:45.018Z",
+      "sourceQualityGeneratedAt": "2026-07-13T17:29:03.219Z",
+      "sourceSuiteVersion": "generated-local",
+      "totalQueries": 11,
+      "exactMatches": 5,
+      "failures": 4,
+      "partials": 2,
+      "edgeCaseTotal": 3,
+      "edgeCaseFailures": 2,
+      "openIssues": [
+        "#43",
+        "#44",
+        "#58",
+        "#59"
+      ],
+      "fixedIssues": [],
+      "fixedIssueCount": 0,
+      "failureIssueDraftCount": 4,
+      "pushedChanges": [
+        "11 benchmark queries evaluated",
+        "5 exact matches",
+        "4 failed conversions and 2 partial conversions",
+        "3 edge-case scenarios tracked (2 failures)",
+        "0 previously open conversion issues resolved in this release cycle"
+      ]
+    },
+    {
+      "releaseTag": "v0.3.0",
+      "generatedAt": "2026-07-13T17:29:03.935Z",
+      "sourceQualityGeneratedAt": "2026-07-13T17:29:03.219Z",
+      "sourceSuiteVersion": "generated-local",
+      "totalQueries": 11,
+      "exactMatches": 5,
+      "failures": 4,
+      "partials": 2,
+      "edgeCaseTotal": 3,
+      "edgeCaseFailures": 2,
+      "openIssues": [
+        "#43",
+        "#44",
+        "#58",
+        "#59"
+      ],
+      "fixedIssues": [],
+      "fixedIssueCount": 0,
+      "failureIssueDraftCount": 4,
+      "pushedChanges": [
+        "11 benchmark queries evaluated",
+        "5 exact matches",
+        "4 failed conversions and 2 partial conversions",
+        "3 edge-case scenarios tracked (2 failures)",
+        "0 previously open conversion issues resolved in this release cycle"
+      ]
+    }
+  ]
+}

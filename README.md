@@ -83,8 +83,60 @@ Default server entry point: `server.js`
 npm start              # sync config and run site/API server
 npm run sync-config    # regenerate site config from env values
 npm run quality-report # build quality summary from raw query outcomes
+npm run failure-issues # generate structured local issue drafts for failed conversions
+npm run release-update # regenerate quality report + failure issues + release update snapshot
+npm run release-update-only -- --release v0.3.1 # generate a specific release-tag snapshot
+npm run release-compare -- --from v0.3.0 --to v0.3.1 # compare two explicit release tags
 npm run import-quality # import generated quality report into database
 ```
+
+## Query Test Data Packs
+
+- SQL Server packs: `testdata/SQL Server`
+- PostgreSQL packs: `testdata/PostgreSQL`
+- Edge-case suites:
+    - `testdata/SQL Server/EdgeCaseFailures.sql`
+    - `testdata/PostgreSQL/EdgeCaseFailures.sql`
+
+## Failure Issue Workflow
+
+If failures exist in `data/quality-report.json`, generate detailed issue drafts in `issues/conversion-failures/`:
+
+```bash
+npm run failure-issues
+```
+
+Use the GitHub issue template at `.github/ISSUE_TEMPLATE/conversion-failure.yml` when creating upstream issues.
+
+## Automated Release Content Updates
+
+Run this before each release/deploy planning update:
+
+```bash
+npm run release-update
+```
+
+For an explicit release tag in CI or local release prep:
+
+```bash
+npm run release-update-only -- --release v0.3.1
+```
+
+To compare two explicit releases and generate a detailed compare artifact:
+
+```bash
+npm run release-compare -- --from v0.3.0 --to v0.3.1
+```
+
+Compare output is written to:
+- `data/release-compare.json`
+
+This command automatically updates:
+- `data/quality-report.json`
+- `issues/conversion-failures/*.md` (draft issue content)
+- `data/release-updates.json` (release-wise push summary, failures, edge-case failures, fixed issues)
+
+`release-planning.html` reads from `data/release-updates.json` and shows the latest generated release update table.
 
 ## Connectivity Modes
 

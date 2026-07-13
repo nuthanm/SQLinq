@@ -412,6 +412,26 @@ app.post("/api/events/conversion", async (req, res) => {
   }
 });
 
+app.post("/api/release-compare/save", async (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.fromRelease || !payload.toRelease || !payload.deltas) {
+      return res.status(400).json({ ok: false, message: "Invalid compare payload." });
+    }
+
+    const out = {
+      ...payload,
+      generatedAt: new Date().toISOString(),
+    };
+
+    const target = path.join(root, "data", "release-compare.json");
+    await fs.writeFile(target, `${JSON.stringify(out, null, 2)}\n`, "utf8");
+    return res.json({ ok: true, message: "Release compare snapshot saved." });
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: err.message });
+  }
+});
+
 app.get("*", (_req, res) => {
   res.sendFile(path.join(root, "index.html"));
 });

@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-07-13T11:09:02.459Z",
+  "generatedAt": "2026-07-13T17:29:03.219Z",
   "suiteVersion": "generated-local",
   "releaseTarget": "v0.3.0",
   "totals": {
-    "totalQueries": 8,
+    "totalQueries": 11,
     "exactMatches": 5,
-    "failed": 2,
-    "partial": 1,
-    "avgCorrectness": 89,
-    "avgTimeMs": 20.75,
-    "medianTimeMs": 20,
-    "p95TimeMs": 31
+    "failed": 4,
+    "partial": 2,
+    "avgCorrectness": 82.45,
+    "avgTimeMs": 24,
+    "medianTimeMs": 24,
+    "p95TimeMs": 36
   },
   "queries": [
     {
@@ -124,6 +124,48 @@
       "issue": null,
       "failureReason": null,
       "releaseBucket": "v0.2.0"
+    },
+    {
+      "id": "Q009",
+      "name": "Edge case - CROSS APPLY top-one",
+      "area": "Edge case failures",
+      "parseStatus": "Pass",
+      "convertStatus": "Fail",
+      "correctness": 61,
+      "exactMatch": false,
+      "timeMs": 33,
+      "status": "Failed",
+      "issue": "#58",
+      "failureReason": "CROSS APPLY lowering is not implemented in converter emitter",
+      "releaseBucket": "v0.4.0"
+    },
+    {
+      "id": "Q010",
+      "name": "Edge case - recursive CTE with aggregate",
+      "area": "Edge case failures",
+      "parseStatus": "Partial",
+      "convertStatus": "Fail",
+      "correctness": 52,
+      "exactMatch": false,
+      "timeMs": 36,
+      "status": "Failed",
+      "issue": "#59",
+      "failureReason": "Recursive CTE with aggregate rewrite loses hierarchy projection semantics",
+      "releaseBucket": "v0.4.0"
+    },
+    {
+      "id": "Q011",
+      "name": "Edge case - window rank subquery",
+      "area": "Edge case failures",
+      "parseStatus": "Pass",
+      "convertStatus": "Partial",
+      "correctness": 82,
+      "exactMatch": false,
+      "timeMs": 29,
+      "status": "Partial",
+      "issue": "#60",
+      "failureReason": "Window function rewrite emits incomplete ordering chain in nested query",
+      "releaseBucket": "v0.4.0"
     }
   ]
 }

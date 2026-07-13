@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-07-13T17:37:57.744Z",
+  "fromRelease": {
+    "releaseTag": "v0.3.0",
+    "generatedAt": "2026-07-13T17:29:03.935Z",
+    "totalQueries": 11,
+    "failures": 4,
+    "edgeCaseFailures": 2,
+    "openIssueCount": 4
+  },
+  "toRelease": {
+    "releaseTag": "v0.3.1",
+    "generatedAt": "2026-07-13T17:31:45.018Z",
+    "totalQueries": 11,
+    "failures": 4,
+    "edgeCaseFailures": 2,
+    "openIssueCount": 4
+  },
+  "deltas": {
+    "totalQueries": 0,
+    "failures": 0,
+    "edgeCaseFailures": 0,
+    "openIssues": 0
+  },
+  "fixedIssues": [],
+  "fixedIssueCount": 0,
+  "newIssues": [],
+  "newIssueCount": 0,
+  "persistentIssues": [
+    "#43",
+    "#44",
+    "#58",
+    "#59"
+  ],
+  "persistentIssueCount": 4
+}
