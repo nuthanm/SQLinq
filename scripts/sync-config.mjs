@@ -44,6 +44,7 @@ const required = [
   "GITHUB_URL",
   "SITE_DESCRIPTION",
   "CREDITS_TEXT",
+  "FAVICON_PATH",
 ];
 
 for (const key of required) {
@@ -64,6 +65,7 @@ const config = {
   siteUrl: env.SITE_URL || "",
   siteDescription: env.SITE_DESCRIPTION,
   creditsText: env.CREDITS_TEXT,
+  faviconPath: env.FAVICON_PATH,
 };
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });

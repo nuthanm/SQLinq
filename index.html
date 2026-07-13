@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Loading…</title>
   <meta name="description" content="" id="metaDescription" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" id="siteFavicon" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -21,15 +22,8 @@
         <span class="brand-name" data-bind="productName">Product</span>
       </a>
       <nav class="nav" aria-label="Primary">
-        <button type="button" data-nav="home" class="nav-link is-active">Product</button>
-        <button type="button" data-nav="start" class="nav-link">Get started</button>
-        <button type="button" data-nav="transparency" class="nav-link">Live progress</button>
-        <button type="button" data-nav="engineering" class="nav-link">Engineering</button>
-        <button type="button" data-nav="extension" class="nav-link nav-cta">Extension prototype</button>
+        <button type="button" data-nav="extension" class="nav-link nav-cta">Extension app</button>
       </nav>
-      <button type="button" class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false">
-        <span></span><span></span>
-      </button>
     </div>
   </header>
 
@@ -40,16 +34,12 @@
         <div class="shell hero-grid">
           <div class="hero-copy">
             <p class="brand-hero" data-bind="productName">Product</p>
-            <h1>SQL to LINQ, inside your IDE — free for every developer.</h1>
+            <h1>SQL to LINQ, inside your editor workspace — free for every developer.</h1>
             <p class="lede" data-bind="siteDescription"></p>
             <div class="cta-row">
-              <button type="button" class="btn btn-primary" data-nav="extension">Open extension prototype</button>
+              <button type="button" class="btn btn-primary" data-nav="extension">Open extension app</button>
               <a class="btn btn-ghost" id="githubCta" href="#" target="_blank" rel="noopener">View on GitHub</a>
             </div>
-            <p class="trust-line">
-              Since <time id="sinceLabel" datetime="">—</time>
-              · Open source · <span data-bind="productPhase"></span>
-            </p>
           </div>
           <div class="hero-visual" aria-hidden="true">
             <div class="hero-code-plane">
@@ -73,9 +63,26 @@
         </div>
       </div>
 
+      <section class="shell hero-links-section" aria-label="What you get">
+        <div class="trust-links">
+          <a class="trust-link" href="release-planning.html#release-plan">
+            <span class="trust-title">Visual workflow</span>
+            <span class="trust-desc">See the translation pipeline from parsing to final LINQ output.</span>
+          </a>
+          <button type="button" class="trust-link" data-route-view="transparency" data-route-target="liveMetrics">
+            <span class="trust-title">GitHub stats</span>
+            <span class="trust-desc">Track commits, issues, and release activity in one place.</span>
+          </button>
+          <button type="button" class="trust-link" data-route-view="transparency" data-route-target="qaTable">
+            <span class="trust-title">Metrics details</span>
+            <span class="trust-desc">Review correctness, exact-match rate, and confidence signals.</span>
+          </button>
+        </div>
+      </section>
+
       <section class="section shell">
         <header class="section-head">
-          <h2>Built for the IDE, not another paid converter tab</h2>
+          <h2>Built for the editor workflow, not another paid converter tab</h2>
           <p>Clean information density with a Fluent accent — ready for Marketplace demos and .NET teams.</p>
         </header>
         <div class="feature-strip">
@@ -93,25 +100,82 @@
           </article>
           <article>
             <h3>Extensible core</h3>
-            <p>Plugin providers for future databases without rewriting the IDE shell.</p>
+            <p>Plugin providers for future databases without rewriting the editor extension shell.</p>
           </article>
         </div>
       </section>
 
-      <section class="section section-muted">
-        <div class="shell dual">
-          <div>
-            <h2>Roadmap at a glance</h2>
-            <p>Transparent phases so contributors and reviewers know where to plug in.</p>
-          </div>
-          <ol class="roadmap">
-            <li class="is-now"><strong>Phase 1</strong> — MS SQL Server · VS Code · free</li>
-            <li><strong>Phase 2</strong> — PostgreSQL &amp; MySQL dialect packs</li>
-            <li><strong>Phase 3</strong> — EF Core projection helpers &amp; Roslyn refactor actions</li>
-            <li><strong>Phase 4</strong> — Team policy packs &amp; CI conversion checks</li>
-          </ol>
+      <section class="section shell">
+        <header class="section-head">
+          <h2>Phase 1 commitment</h2>
+          <p>We release phase by phase so developers get working features with measurable quality, not a partially working bundle.</p>
+        </header>
+        <div class="feature-strip phase-strip">
+          <article>
+            <h3>What you get now</h3>
+            <p>Reliable SQL to LINQ conversion without database connectivity for common query shapes.</p>
+          </article>
+          <article>
+            <h3>What is tracked</h3>
+            <p>Correctness %, exact match counts, parse/convert pass rates, slowness metrics, and issue-linked failures.</p>
+          </article>
+          <article>
+            <h3>How failures are handled</h3>
+            <p>Each partial/failed query maps to a tracked issue and gets scheduled in an upcoming release bucket.</p>
+          </article>
+          <article>
+            <h3>How trust is built</h3>
+            <p>Live stats and benchmark transparency are visible in the app so teams can decide adoption with confidence.</p>
+          </article>
         </div>
       </section>
+
+      <section class="section section-muted workflow-lite-section" id="workflowConcept">
+        <div class="shell">
+          <header class="section-head">
+            <h2>Animated workflow: SQL to LINQ conversion</h2>
+            <p>Same conversion model across releases: parse SQL, map intent to domain symbols, and emit final LINQ query.</p>
+          </header>
+
+          <div class="workflow-lite" aria-label="SQL to LINQ workflow">
+            <article class="wf-card">
+              <h3>1. Parse</h3>
+              <p>Read SQL tokens and build query structure.</p>
+              <ul>
+                <li>C#/.NET concepts: tokenization, AST model, pattern matching</li>
+                <li>Typical APIs: Span, Regex, immutable syntax nodes</li>
+              </ul>
+            </article>
+
+            <div class="wf-arrow" aria-hidden="true">
+              <span class="wf-dot"></span>
+            </div>
+
+            <article class="wf-card">
+              <h3>2. Map</h3>
+              <p>Bind SQL names to model/entity members and semantics.</p>
+              <ul>
+                <li>C#/.NET concepts: symbol tables, dictionaries, type metadata</li>
+                <li>Typical APIs: Dictionary, reflection metadata, Roslyn symbols</li>
+              </ul>
+            </article>
+
+            <div class="wf-arrow" aria-hidden="true">
+              <span class="wf-dot"></span>
+            </div>
+
+            <article class="wf-card">
+              <h3>3. Final query</h3>
+              <p>Generate equivalent LINQ in method or query syntax.</p>
+              <ul>
+                <li>C#/.NET concepts: expression trees, IQueryable pipeline</li>
+                <li>Typical APIs: Enumerable/Queryable operators, lambda expressions</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
     </section>
 
     <section class="view" id="view-start" data-view="start" aria-label="Get started" hidden>
@@ -186,6 +250,26 @@
           <span class="step-n">04</span>
           <h2>Review</h2>
           <p>Read Results, Execution Plan suggestions, and the Concept hierarchy before inserting into your C# file.</p>
+        </article>
+      </div>
+      <div class="shell mode-grid">
+        <article class="mode-card">
+          <h2>Without DB connectivity</h2>
+          <p>Best for secure or offline environments and fast conversion loops.</p>
+          <ul>
+            <li>LINQ output from SQL text input.</li>
+            <li>Recognized-clause summary and unsupported-clause warnings.</li>
+            <li>No schema validation, plan advice, or sample row checks.</li>
+          </ul>
+        </article>
+        <article class="mode-card">
+          <h2>With DB connectivity</h2>
+          <p>Best for teams that need deeper correctness and performance confidence.</p>
+          <ul>
+            <li>Everything available in offline mode.</li>
+            <li>Schema and type validation against database metadata.</li>
+            <li>Execution-plan insights and optional sample data previews.</li>
+          </ul>
         </article>
       </div>
       <div class="shell callout-band">
@@ -276,37 +360,69 @@
 
       <div class="shell stats-grid">
         <article class="stat-block">
-          <h2>Test statistics</h2>
-          <p class="stat-note">Filled as the converter core lands — placeholders for Marketplace demos.</p>
+          <h2>Conversion quality</h2>
+          <p class="stat-note">Measured from the regression query suite and updated each release.</p>
           <ul>
-            <li><span>Parser / binder</span><strong>Pending</strong></li>
-            <li><span>Rewrite rules</span><strong>Pending</strong></li>
-            <li><span>LINQ emit</span><strong>Pending</strong></li>
-            <li><span>Plan advisors</span><strong>Pending</strong></li>
-            <li><span>Coverage (core)</span><strong>Pending</strong></li>
+            <li><span>Correctness score</span><strong id="qaCorrectnessPct">—</strong></li>
+            <li><span>Exact matches</span><strong id="qaExactMatches">—</strong></li>
+            <li><span>Total queries</span><strong id="qaTotalQueries">—</strong></li>
+            <li><span>Exact-match rate</span><strong id="qaExactMatchRate">—</strong></li>
+            <li><span>Confidence level</span><strong id="qaConfidenceLevel">—</strong></li>
           </ul>
         </article>
         <article class="stat-block">
-          <h2>Perf statistics</h2>
-          <p class="stat-note">Measured once golden suites exist.</p>
+          <h2>Conversion performance</h2>
+          <p class="stat-note">Conversion timing from the same query suite to set realistic expectations.</p>
           <ul>
-            <li><span>Median convert (≤50 LOC)</span><strong>—</strong></li>
-            <li><span>p95 convert (complex CTE)</span><strong>—</strong></li>
-            <li><span>Plan fetch (local)</span><strong>—</strong></li>
-            <li><span>Memory peak (worker)</span><strong>—</strong></li>
-            <li><span>Cold start extension</span><strong>—</strong></li>
+            <li><span>Average convert time</span><strong id="qaAvgTime">—</strong></li>
+            <li><span>Median convert time</span><strong id="qaMedianTime">—</strong></li>
+            <li><span>p95 convert time</span><strong id="qaP95Time">—</strong></li>
+            <li><span>Fastest query</span><strong id="qaFastest">—</strong></li>
+            <li><span>Slowest query</span><strong id="qaSlowest">—</strong></li>
           </ul>
         </article>
         <article class="stat-block">
-          <h2>Bugs during development</h2>
-          <p class="stat-note">Tracked publicly via GitHub Issues when work begins.</p>
+          <h2>Failure tracking to issues</h2>
+          <p class="stat-note">Every failed conversion is tracked and pushed into upcoming release planning.</p>
           <ul>
-            <li><span>Identified</span><strong id="bugIdentified">—</strong></li>
-            <li><span>Open</span><strong id="bugOpen">—</strong></li>
-            <li><span>Closed</span><strong id="bugClosed">—</strong></li>
+            <li><span>Failed conversions</span><strong id="qaFailures">—</strong></li>
+            <li><span>Parser failures</span><strong id="qaParserFailures">—</strong></li>
+            <li><span>Partial conversions</span><strong id="qaPartials">—</strong></li>
+            <li><span>Issue coverage</span><strong id="qaIssueCoverage">—</strong></li>
+            <li><span>Next release focus</span><strong id="qaNextReleaseFocus">—</strong></li>
+            <li><span>Open issues (GitHub)</span><strong id="bugOpen">—</strong></li>
+            <li><span>Closed issues (GitHub)</span><strong id="bugClosed">—</strong></li>
             <li><span>Fix status</span><strong id="bugFixPct">—</strong></li>
           </ul>
         </article>
+      </div>
+
+      <div class="shell panel">
+        <div class="panel-head">
+          <h2>Per-query conversion trust report</h2>
+          <span class="live-pill is-live" id="qaSuitePill">Regression suite snapshot</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="qaTable">
+            <thead>
+              <tr>
+                <th>Query</th>
+                <th>Parse</th>
+                <th>Convert</th>
+                <th>Correctness</th>
+                <th>Exact match</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Issue</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="8">Loading quality suite…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="caption" id="qaCaption">Every failed query is linked to an issue and scheduled in upcoming releases.</p>
+        <p class="caption">Confidence model: 55% correctness score + 35% exact-match rate + 10% failure-rate stability factor. Failed or partial queries are always issue-linked before release sign-off.</p>
       </div>
     </section>
 
@@ -350,10 +466,10 @@
       </div>
     </section>
 
-    <section class="view" id="view-extension" data-view="extension" aria-label="Extension prototype" hidden>
+    <section class="view" id="view-extension" data-view="extension" aria-label="Extension app" hidden>
       <div class="page-hero shell ext-hero">
         <p class="eyebrow">IDE experience</p>
-        <h1>Extension prototype</h1>
+        <h1>Extension app</h1>
         <p class="lede">Distraction-free conversion surface — extensible panels, no ads, no upsell chrome. Phase 1 focuses on VS Code with a simple SQL Server conversion flow.</p>
         <div class="ext-tabs" role="tablist" aria-label="Extension panels">
           <button type="button" role="tab" class="ext-tab is-active" aria-selected="true" data-panel="convert">1. Conversion</button>
@@ -392,7 +508,7 @@
                   </header>
                   <div class="popup-toolbar">
                     <label>Target
-                      <select>
+                      <select id="conversionTarget">
                         <option>Method syntax</option>
                         <option>Query syntax</option>
                         <option>EF Core IQueryable</option>
@@ -405,26 +521,34 @@
                         <option>IQueryable&lt;T&gt; parameters</option>
                       </select>
                     </label>
+                    <label>Connectivity
+                      <select id="connectivityMode">
+                        <option value="without">Without DB connectivity</option>
+                        <option value="with">With DB connectivity</option>
+                      </select>
+                    </label>
                     <label class="check"><input type="checkbox" checked /> Preserve aliases</label>
+                  </div>
+                  <div class="convert-status" id="convertStatus">Simple SELECT conversion ready.</div>
+                  <div class="connectivity-outputs">
+                    <div class="ed-label">Expected output results in this mode</div>
+                    <ul id="connectivityOutputList"></ul>
                   </div>
                   <div class="split-editors">
                     <div>
                       <div class="ed-label">SQL input</div>
-                      <pre class="ed"><code><span class="tok-kw">SELECT</span> CustomerId, Name
-<span class="tok-kw">FROM</span> Customers
-<span class="tok-kw">WHERE</span> IsActive = 1
-<span class="tok-kw">ORDER BY</span> Name;</code></pre>
+                      <textarea class="ed sql-input" id="sqlInput" spellcheck="false">SELECT CustomerId, Name
+FROM Customers
+WHERE IsActive = 1
+ORDER BY Name;</textarea>
                     </div>
                     <div>
                       <div class="ed-label">LINQ preview</div>
-                      <pre class="ed linq"><code>customers
-  .<span class="tok-fn">Where</span>(c =&gt; c.IsActive)
-  .<span class="tok-fn">OrderBy</span>(c =&gt; c.Name)
-  .<span class="tok-fn">Select</span>(c =&gt; new { c.CustomerId, c.Name });</code></pre>
+                      <pre class="ed linq" id="linqPreview"><code></code></pre>
                     </div>
                   </div>
                   <footer class="popup-foot">
-                    <button type="button" class="btn btn-ghost btn-sm">Copy</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="copyConversion">Copy</button>
                     <button type="button" class="btn btn-ghost btn-sm">Open plan</button>
                     <button type="button" class="btn btn-primary btn-sm">Insert into editor</button>
                   </footer>
@@ -589,13 +713,33 @@
 
   <footer class="site-footer">
     <div class="shell footer-inner">
-      <div class="brand brand-foot">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-name" data-bind="productName"></span>
+      <div class="footer-lead">
+        <div class="brand brand-foot">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-name" data-bind="productName"></span>
+        </div>
+        <p data-bind="productTagline"></p>
       </div>
-      <p data-bind="productTagline"></p>
-      <p class="fine" id="creditsLine"></p>
-      <p class="fine">Not affiliated with Microsoft. Rename anytime via <code>.env</code> → <code>npm run sync-config</code>.</p>
+      <div class="footer-grid footer-grid-compact" aria-label="Footer links">
+        <section class="footer-column">
+          <h2>Planning</h2>
+          <a class="footer-link" href="release-planning.html">Release-wise planning</a>
+          <a class="footer-link" href="release-planning.html#release-plan">Release timeline</a>
+          <a class="footer-link" href="release-planning.html#translation-flow">Translation flow</a>
+        </section>
+        <section class="footer-column">
+          <h2>C# and .NET docs</h2>
+          <a class="footer-link" href="https://learn.microsoft.com/dotnet/csharp/linq/get-started/introduction-to-linq-queries" target="_blank" rel="noopener">LINQ query introduction</a>
+          <a class="footer-link" href="https://learn.microsoft.com/dotnet/csharp/linq/standard-query-operators/" target="_blank" rel="noopener">Standard query operators</a>
+          <a class="footer-link" href="https://learn.microsoft.com/dotnet/csharp/advanced-topics/expression-trees/" target="_blank" rel="noopener">Expression trees</a>
+          <a class="footer-link" href="https://learn.microsoft.com/dotnet/api/system.linq.iqueryable" target="_blank" rel="noopener">IQueryable API</a>
+        </section>
+        <section class="footer-column footer-column-note">
+          <h2>Project</h2>
+          <p class="footer-copy">Free SQL to LINQ tooling for Visual Studio and VS Code, with transparent release delivery and trust-focused conversion reporting.</p>
+          <p class="fine">Not affiliated with Microsoft or Visual Studio Code.</p>
+        </section>
+      </div>
     </div>
   </footer>
 

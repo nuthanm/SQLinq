@@ -2,9 +2,16 @@
   "name": "sqlinq-site",
   "private": true,
   "version": "0.1.0",
-  "description": "Official website prototype for the SQL to LINQ IDE extension",
+  "description": "Production-facing web app for the SQLinq extension platform",
   "scripts": {
     "sync-config": "node scripts/sync-config.mjs",
-    "start": "npm run sync-config && npx --yes serve . -p 5173"
+    "quality-report": "node scripts/generate-quality-report.mjs",
+    "import-quality": "node scripts/import-quality-report.mjs",
+    "start": "npm run sync-config && node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "pg": "^8.13.0"
   }
 }

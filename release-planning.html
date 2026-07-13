@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SQLinq Release Planning</title>
+  <meta name="description" content="Release-wise planning details and animated SQL to LINQ translation flow." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" id="siteFavicon" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="release-page">
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header" id="top">
+    <div class="shell header-inner">
+      <a class="brand" href="index.html#home" aria-label="Back to home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">SQLinq</span>
+      </a>
+      <nav class="nav release-nav" aria-label="Release navigation">
+        <a class="nav-link is-active" href="#release-plan">Release plan</a>
+        <a class="nav-link" href="#translation-flow">Translation flow</a>
+        <a class="nav-link nav-cta" href="index.html">Back to product site</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="release-hero" id="release-plan">
+      <div class="release-atmosphere" aria-hidden="true"></div>
+      <div class="shell release-hero-grid">
+        <div>
+          <p class="eyebrow">Delivery transparency</p>
+          <h1>Release-wise planning and quality checkpoints</h1>
+          <p class="lede">This page isolates phase delivery goals so contributors can understand scope, quality gates, and what lands in each release without scanning the full product page.</p>
+        </div>
+        <aside class="release-summary" aria-label="Current release summary">
+          <p class="summary-label">Current target</p>
+          <h2>Phase 1</h2>
+          <ul>
+            <li>MS SQL Server conversion core</li>
+            <li>Initial extension workflow</li>
+            <li>Public quality and issue tracking</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section shell">
+      <div class="dual roadmap-spotlight">
+        <div>
+          <h2>Roadmap at a glance</h2>
+          <p>Transparent phases so contributors and reviewers know where to plug in and what ships in each milestone.</p>
+        </div>
+        <ol class="roadmap">
+          <li class="is-now"><strong>Phase 1</strong> — MS SQL Server · VS Code baseline · free</li>
+          <li><strong>Phase 2</strong> — Visual Studio support + PostgreSQL/MySQL dialect packs</li>
+          <li><strong>Phase 3</strong> — JetBrains plugin path + EF projection helpers + Roslyn refactor actions</li>
+          <li><strong>Phase 4</strong> — Team policy packs &amp; CI conversion checks</li>
+        </ol>
+      </div>
+
+      <header class="section-head">
+        <h2>Release timeline</h2>
+        <p>Every phase has a clear focus and explicit completion signal.</p>
+      </header>
+      <ol class="release-timeline" aria-label="Release-wise plan">
+        <li class="is-now">
+          <div class="phase-tag">Phase 1</div>
+          <h3>MS SQL Server + VS Code public baseline</h3>
+          <p>Ship stable SELECT/JOIN/GROUP BY conversion, concept hierarchy, and transparent quality dashboard.</p>
+          <span class="phase-meta">Status: in delivery</span>
+        </li>
+        <li>
+          <div class="phase-tag">Phase 2</div>
+          <h3>PostgreSQL and MySQL dialect packs</h3>
+          <p>Extend parsing and rewrite rules via provider packs while preserving the same UX and trust report shape.</p>
+          <span class="phase-meta">Status: next</span>
+        </li>
+        <li>
+          <div class="phase-tag">Phase 3</div>
+          <h3>EF Core projection helpers and Roslyn actions</h3>
+          <p>Add developer ergonomics for safer insertions, naming cleanup, and quick refactor patterns.</p>
+          <span class="phase-meta">Status: planned</span>
+        </li>
+        <li>
+          <div class="phase-tag">Phase 4</div>
+          <h3>Policy packs and CI conversion checks</h3>
+          <p>Introduce team-level governance and pipeline checks so SQL-to-LINQ consistency is enforceable in PRs.</p>
+          <span class="phase-meta">Status: planned</span>
+        </li>
+      </ol>
+    </section>
+
+    <section class="section section-muted" id="translation-flow">
+      <div class="shell">
+        <header class="section-head">
+          <h2>How translation happens</h2>
+          <p>Animated view of the SQL to LINQ pipeline: parse, bind, rewrite, and emit.</p>
+        </header>
+
+        <div class="translation-stage" aria-label="Animated SQL to LINQ translation">
+          <div class="translation-track" aria-hidden="true">
+            <span class="pulse-dot"></span>
+            <span class="pulse-dot"></span>
+            <span class="pulse-dot"></span>
+          </div>
+
+          <article class="flow-column">
+            <h3>1. Parse SQL</h3>
+            <p>Read SQL text and create a structured AST.</p>
+            <pre><code>SELECT c.Name
+FROM Customers c
+WHERE c.IsActive = 1</code></pre>
+          </article>
+
+          <article class="flow-column">
+            <h3>2. Bind Meaning</h3>
+            <p>Resolve table and column symbols to model entities.</p>
+            <ul>
+              <li>Customers -> Customer</li>
+              <li>Name -> Customer.Name</li>
+              <li>IsActive -> Customer.IsActive</li>
+            </ul>
+          </article>
+
+          <article class="flow-column">
+            <h3>3. Rewrite Rules</h3>
+            <p>Convert relational intent to LINQ operations.</p>
+            <ul>
+              <li>WHERE -> .Where(...)</li>
+              <li>SELECT -> .Select(...)</li>
+            </ul>
+          </article>
+
+          <article class="flow-column">
+            <h3>4. Emit LINQ</h3>
+            <p>Generate ready-to-use C# LINQ output.</p>
+            <pre><code>customers
+  .Where(c => c.IsActive)
+  .Select(c => c.Name);</code></pre>
+          </article>
+
+          <div class="token-stream" aria-hidden="true">
+            <span class="token-token">SELECT</span>
+            <span class="token-token">FROM</span>
+            <span class="token-token">WHERE</span>
+          </div>
+        </div>
+
+        <div class="release-note-box">
+          <h3>Why this visualization matters</h3>
+          <p>Contributors can quickly understand where a conversion bug belongs: parser, binder, rewrite rule, or emitter. This keeps issue triage and release planning precise.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div class="footer-lead">
+        <div class="brand brand-foot">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-name">SQLinq</span>
+        </div>
+        <p>Release planning page for transparent, phase-wise delivery.</p>
+      </div>
+      <div class="footer-grid footer-grid-compact" aria-label="Footer links">
+        <section class="footer-column">
+          <h2>Planning</h2>
+          <a class="footer-link" href="#release-plan">Release plan</a>
+          <a class="footer-link" href="#release-plan">Roadmap at a glance</a>
+          <a class="footer-link" href="#translation-flow">Translation flow</a>
+          <a class="footer-link" href="index.html#transparency">Live progress</a>
+        </section>
+        <section class="footer-column footer-column-note">
+          <h2>Project</h2>
+          <p class="footer-copy">Focused planning surface for contributors and teams to review release scope and translation mechanics.</p>
+          <p class="fine"><a class="footer-link" href="index.html">Return to main product page</a></p>
+        </section>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

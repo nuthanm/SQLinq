@@ -8,6 +8,7 @@ window.__SITE_CONFIG__ = {
   "githubRepo": "SQLinq",
   "githubUrl": "https://github.com/nuthanm/SQLinq",
   "siteUrl": "",
-  "siteDescription": "Convert complex T-SQL to idiomatic LINQ inside your IDE — free forever, extensible dialect architecture.",
-  "creditsText": "Website prototype and extension UX structure were shaped with AI pair-programming assistance (Composer)."
+  "siteDescription": "Convert any SQL to idiomatic LINQ inside your editor workspace — free forever, extensible dialect architecture.",
+  "creditsText": "Independent SQL to LINQ tooling for Visual Studio and VS Code.",
+  "faviconPath": "assets/favicon.svg?v=2"
 };

@@ -1,0 +1,43 @@
+{
+  "name": "sqlinq-vscode-extension",
+  "displayName": "SQLinq",
+  "description": "Convert basic SQL to LINQ inside VS Code.",
+  "version": "0.1.0",
+  "publisher": "sqlinq",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Programming Languages", "Other"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sqlinq.convertSelection",
+        "title": "SQLinq: Convert SQL to LINQ"
+      },
+      {
+        "command": "sqlinq.convertSelectionQuick",
+        "title": "SQLinq: Quick Convert Selection"
+      },
+      {
+        "command": "sqlinq.openConverterUi",
+        "title": "SQLinq: Open Converter UI"
+      }
+    ],
+    "configuration": {
+      "title": "SQLinq",
+      "properties": {
+        "sqlinq.telemetryEndpoint": {
+          "type": "string",
+          "default": "",
+          "description": "Optional API endpoint for conversion event sync, for example http://localhost:5173/api/events/conversion"
+        },
+        "sqlinq.telemetrySource": {
+          "type": "string",
+          "default": "vscode-extension",
+          "description": "Source label stored with synced conversion events"
+        }
+      }
+    }
+  }
+}
