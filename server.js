@@ -183,6 +183,7 @@ function summarizeConversionEvent(row, index) {
     queryElements,
     concept,
     queryFingerprint: payload.queryFingerprint || null,
+    queryText: payload.queryText || payload.sql || payload.querySummary || null,
     target,
     connectivityMode,
     databaseType,
@@ -375,6 +376,7 @@ app.post("/api/events/conversion", async (req, res) => {
     queryFingerprint: payload.queryFingerprint || null,
     querySummary: payload.querySummary || null,
     queryTypeLabel: payload.queryTypeLabel || null,
+    queryText: payload.queryText || payload.sql || null,
     sqlLength: payload.sqlLength == null ? null : Number(payload.sqlLength),
     clauseProfile: Array.isArray(payload.clauseProfile) ? payload.clauseProfile : [],
     queryElementsDetailed: Array.isArray(payload.queryElementsDetailed) ? payload.queryElementsDetailed : [],
@@ -412,29 +414,120 @@ app.post("/api/events/conversion", async (req, res) => {
   }
 });
 
-/**
- * Sanitize failure data by replacing actual table/column names with standard generic names.
- * This prevents leaking sensitive enterprise query definitions while preserving structure.
- * 
- * Mapping:
- * - All table names → Table1, Table2, etc. (maintaining reference count)
- * - All column names → Column1, Column2, etc.
- * - JOIN relationships preserved with count
- * - WHERE/ORDER clauses maintain pattern but not specific names
- */
+const SQL_KEYWORDS = new Set([
+  "SELECT", "FROM", "WHERE", "ORDER", "BY", "GROUP", "HAVING", "TOP", "DISTINCT", "AS",
+  "AND", "OR", "NOT", "IN", "IS", "NULL", "LIKE", "BETWEEN", "EXISTS", "CASE", "WHEN",
+  "THEN", "ELSE", "END", "ON", "INNER", "LEFT", "RIGHT", "FULL", "OUTER", "JOIN", "CROSS",
+  "APPLY", "UNION", "ALL", "INTERSECT", "EXCEPT", "OFFSET", "FETCH", "NEXT", "ROWS", "ROW",
+  "ONLY", "ASC", "DESC", "WITH", "CTE", "OVER", "PARTITION", "INTO", "UPDATE", "DELETE", "SET",
+  "VALUES", "INSERT", "TRUE", "FALSE", "LIMIT"
+]);
+
+function cleanSqlIdentifier(token) {
+  return String(token || "").trim().replace(/^\[|\]$/g, "").replace(/^"|"$/g, "").replace(/^`|`$/g, "");
+}
+
+function maskSqlStrings(sql) {
+  const values = [];
+  const text = String(sql || "").replace(/'(?:''|[^'])*'/g, (m) => {
+    const key = `__SQL_STR_${values.length}__`;
+    values.push(m);
+    return key;
+  });
+  return { text, values };
+}
+
+function unmaskSqlStrings(sql, values) {
+  let out = String(sql || "");
+  values.forEach((value, idx) => {
+    out = out.replaceAll(`__SQL_STR_${idx}__`, value);
+  });
+  return out;
+}
+
+function looksLikeSql(text) {
+  const sample = String(text || "").trim();
+  if (!sample) return false;
+  return /\b(select|with|insert|update|delete)\b/i.test(sample);
+}
+
+function pickRawSqlText(data) {
+  const candidates = [
+    data.queryText,
+    data.sql,
+    data.rawSql,
+    data.originalSql,
+    data.query,
+    data.inputSql,
+    data.sqlInput,
+    data.querySummary,
+  ];
+  return candidates.find(looksLikeSql) || "";
+}
+
+function sanitizeSqlIdentifiersInPlace(rawSql) {
+  if (!looksLikeSql(rawSql)) return "";
+
+  const { text: masked, values } = maskSqlStrings(rawSql);
+  const tableMap = new Map();
+  const columnMap = new Map();
+  const aliasSet = new Set();
+
+  const tableName = (token) => {
+    const key = cleanSqlIdentifier(token).toLowerCase();
+    if (!tableMap.has(key)) tableMap.set(key, `table${tableMap.size + 1}`);
+    return tableMap.get(key);
+  };
+
+  const columnName = (token) => {
+    const key = cleanSqlIdentifier(token).toLowerCase();
+    if (!columnMap.has(key)) columnMap.set(key, `col${columnMap.size + 1}`);
+    return columnMap.get(key);
+  };
+
+  let sql = masked.replace(
+    /\b(from|join|into|update|delete\s+from)\s+((?:\[[^\]]+\]|"[^"]+"|`[^`]+`|[A-Za-z_][\w$]*)(?:\s*\.\s*(?:\[[^\]]+\]|"[^"]+"|`[^`]+`|[A-Za-z_][\w$]*)){0,2})(\s+(?:as\s+)?([A-Za-z_][\w$]*))?/gi,
+    (match, kw, tableExpr, aliasPart, alias) => {
+      const rawSegments = String(tableExpr)
+        .split(".")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const base = rawSegments.length ? rawSegments[rawSegments.length - 1] : tableExpr;
+      const sanitizedTable = tableName(base);
+      if (alias) aliasSet.add(String(alias).toLowerCase());
+      return `${kw} ${sanitizedTable}${aliasPart || ""}`;
+    }
+  );
+
+  sql = sql.replace(
+    /([A-Za-z_][\w$]*|\[[^\]]+\]|"[^"]+"|`[^`]+`)\s*\.\s*(\*|[A-Za-z_][\w$]*|\[[^\]]+\]|"[^"]+"|`[^`]+`)/g,
+    (match, left, right) => {
+      if (right === "*") return `${left}.*`;
+      return `${left}.${columnName(right)}`;
+    }
+  );
+
+  sql = sql.replace(/\b[A-Za-z_][\w$]*\b/g, (token, offset, source) => {
+    const upper = token.toUpperCase();
+    const lower = token.toLowerCase();
+    const prev = source[offset - 1] || "";
+    const next = source[offset + token.length] || "";
+
+    if (SQL_KEYWORDS.has(upper)) return token;
+    if (aliasSet.has(lower)) return token;
+    if (/^table\d+$/i.test(token) || /^col\d+$/i.test(token)) return token;
+    if (/^__SQL_STR_\d+__$/i.test(token)) return token;
+    if (prev === "@" || prev === "#") return token;
+    if (next === "(") return token;
+    return columnName(token);
+  });
+
+  return unmaskSqlStrings(sql, values);
+}
+
 function sanitizeFailureData(data) {
   const sanitized = { ...data };
-  
-  // Sanitize the query type and name to be generic but informative
-  const elements = Array.isArray(data.queryElements) ? data.queryElements : [];
-  const elementCount = elements.length;
-  
-  // Create a generic title based on query complexity
-  if (data.name) {
-    const origLength = String(data.name).length;
-    sanitized.name = `${data.queryType || "Query"} (${elementCount} elements, ${origLength} chars)`;
-  }
-  
+  sanitized.sqlInput = sanitizeSqlIdentifiersInPlace(pickRawSqlText(data));
   return sanitized;
 }
 
@@ -459,6 +552,34 @@ async function createGitHubIssue(failureData) {
   const exactMatch = sanitized.exactMatch ? "Yes" : "No";
   const timing = Number(sanitized.timeMs ?? 0);
   const queryType = sanitized.queryType || "unknown";
+  const sqlInput = sanitized.sqlInput || "-- SQL text unavailable in telemetry.\n-- Please paste the failing SQL and keep only identifiers anonymized.";
+
+  const querySearchId = String(queryId || "").trim();
+
+  if (querySearchId) {
+    const searchQuery = encodeURIComponent(`repo:${owner}/${repo} is:issue in:title ${querySearchId}`);
+    const existingRes = await fetch(`https://api.github.com/search/issues?q=${searchQuery}&per_page=1`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Accept": "application/vnd.github+json",
+      },
+    });
+
+    if (existingRes.ok) {
+      const existingJson = await existingRes.json();
+      const existing = Array.isArray(existingJson?.items) ? existingJson.items[0] : null;
+      if (existing?.number) {
+        return {
+          issueNumber: existing.number,
+          issueUrl: existing.html_url,
+          queryId,
+          alreadyExists: true,
+        };
+      }
+    }
+  }
 
   // Format issue body to match the GitHub issue form template
   // The form fields are automatically parsed from the markdown headers
@@ -484,18 +605,7 @@ ${databaseTag}
 
 ### SQL Input (sanitized)
 \`\`\`sql
--- Sanitized SQL Pattern: ${queryType}
--- Original query: ${sanitized.name}
--- Elements: ${Array.isArray(sanitized.queryElements) ? sanitized.queryElements.join(", ") : "unknown"}
--- 
--- NOTE: Actual table/column names replaced with generic references
--- to protect sensitive enterprise database definitions.
--- Pattern and structure are preserved for reproducibility.
-
-SELECT col1, col2
-FROM table1
-WHERE col3 = 1
-ORDER BY col4 DESC;
+${sqlInput}
 \`\`\`
 
 ### Observed Output / Error
@@ -590,6 +700,7 @@ Blocks successful conversion for this SQL pattern:
     issueNumber: issue.number,
     issueUrl: issue.html_url,
     queryId: queryId,
+    alreadyExists: false,
   };
 }
 
@@ -625,7 +736,10 @@ app.post("/api/github-issues/create", async (req, res) => {
       ok: true,
       issueNumber: result.issueNumber,
       issueUrl: result.issueUrl,
-      message: `Issue #${result.issueNumber} created successfully`,
+      alreadyExists: Boolean(result.alreadyExists),
+      message: result.alreadyExists
+        ? `Issue #${result.issueNumber} already exists`
+        : `Issue #${result.issueNumber} created successfully`,
     });
   } catch (err) {
     console.error("GitHub issue creation failed:", err.message);

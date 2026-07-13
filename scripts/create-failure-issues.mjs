@@ -7,6 +7,15 @@ const root = resolve(dirname(thisFile), "..");
 const reportPath = resolve(root, "data", "quality-report.json");
 const issuesDir = resolve(root, "issues", "conversion-failures");
 
+const SQL_KEYWORDS = new Set([
+  "SELECT", "FROM", "WHERE", "ORDER", "BY", "GROUP", "HAVING", "TOP", "DISTINCT", "AS",
+  "AND", "OR", "NOT", "IN", "IS", "NULL", "LIKE", "BETWEEN", "EXISTS", "CASE", "WHEN",
+  "THEN", "ELSE", "END", "ON", "INNER", "LEFT", "RIGHT", "FULL", "OUTER", "JOIN", "CROSS",
+  "APPLY", "UNION", "ALL", "INTERSECT", "EXCEPT", "OFFSET", "FETCH", "NEXT", "ROWS", "ROW",
+  "ONLY", "ASC", "DESC", "WITH", "CTE", "OVER", "PARTITION", "INTO", "UPDATE", "DELETE", "SET",
+  "VALUES", "INSERT", "TRUE", "FALSE", "LIMIT"
+]);
+
 function nowIsoCompact() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -36,27 +45,119 @@ function stageLabel(row) {
   return "Unknown";
 }
 
-/**
- * Sanitize row data to remove sensitive query definitions.
- * Replaces actual table/column names with generic placeholders.
- */
+function cleanSqlIdentifier(token) {
+  return String(token || "").trim().replace(/^\[|\]$/g, "").replace(/^"|"$/g, "").replace(/^`|`$/g, "");
+}
+
+function maskSqlStrings(sql) {
+  const values = [];
+  const text = String(sql || "").replace(/'(?:''|[^'])*'/g, (m) => {
+    const key = `__SQL_STR_${values.length}__`;
+    values.push(m);
+    return key;
+  });
+  return { text, values };
+}
+
+function unmaskSqlStrings(sql, values) {
+  let out = String(sql || "");
+  values.forEach((value, idx) => {
+    out = out.replaceAll(`__SQL_STR_${idx}__`, value);
+  });
+  return out;
+}
+
+function looksLikeSql(text) {
+  const sample = String(text || "").trim();
+  if (!sample) return false;
+  return /\b(select|with|insert|update|delete)\b/i.test(sample);
+}
+
+function pickRawSqlText(row) {
+  const candidates = [
+    row.queryText,
+    row.sql,
+    row.rawSql,
+    row.originalSql,
+    row.query,
+    row.inputSql,
+    row.sqlInput,
+    row.querySummary,
+    row.name,
+  ];
+  return candidates.find(looksLikeSql) || "";
+}
+
+function sanitizeSqlIdentifiersInPlace(rawSql) {
+  if (!looksLikeSql(rawSql)) return "";
+
+  const { text: masked, values } = maskSqlStrings(rawSql);
+  const tableMap = new Map();
+  const columnMap = new Map();
+  const aliasSet = new Set();
+
+  const tableName = (token) => {
+    const key = cleanSqlIdentifier(token).toLowerCase();
+    if (!tableMap.has(key)) tableMap.set(key, `table${tableMap.size + 1}`);
+    return tableMap.get(key);
+  };
+
+  const columnName = (token) => {
+    const key = cleanSqlIdentifier(token).toLowerCase();
+    if (!columnMap.has(key)) columnMap.set(key, `col${columnMap.size + 1}`);
+    return columnMap.get(key);
+  };
+
+  let sql = masked.replace(
+    /\b(from|join|into|update|delete\s+from)\s+((?:\[[^\]]+\]|"[^"]+"|`[^`]+`|[A-Za-z_][\w$]*)(?:\s*\.\s*(?:\[[^\]]+\]|"[^"]+"|`[^`]+`|[A-Za-z_][\w$]*)){0,2})(\s+(?:as\s+)?([A-Za-z_][\w$]*))?/gi,
+    (match, kw, tableExpr, aliasPart, alias) => {
+      const rawSegments = String(tableExpr)
+        .split(".")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const base = rawSegments.length ? rawSegments[rawSegments.length - 1] : tableExpr;
+      const sanitizedTable = tableName(base);
+      if (alias) aliasSet.add(String(alias).toLowerCase());
+      return `${kw} ${sanitizedTable}${aliasPart || ""}`;
+    }
+  );
+
+  sql = sql.replace(
+    /([A-Za-z_][\w$]*|\[[^\]]+\]|"[^"]+"|`[^`]+`)\s*\.\s*(\*|[A-Za-z_][\w$]*|\[[^\]]+\]|"[^"]+"|`[^`]+`)/g,
+    (match, left, right) => {
+      if (right === "*") return `${left}.*`;
+      return `${left}.${columnName(right)}`;
+    }
+  );
+
+  sql = sql.replace(/\b[A-Za-z_][\w$]*\b/g, (token, offset, source) => {
+    const upper = token.toUpperCase();
+    const lower = token.toLowerCase();
+    const prev = source[offset - 1] || "";
+    const next = source[offset + token.length] || "";
+
+    if (SQL_KEYWORDS.has(upper)) return token;
+    if (aliasSet.has(lower)) return token;
+    if (/^table\d+$/i.test(token) || /^col\d+$/i.test(token)) return token;
+    if (/^__SQL_STR_\d+__$/i.test(token)) return token;
+    if (prev === "@" || prev === "#") return token;
+    if (next === "(") return token;
+    return columnName(token);
+  });
+
+  return unmaskSqlStrings(sql, values);
+}
+
 function sanitizeFailureData(row) {
-  const sanitized = { ...row };
-  
-  // Create a generic title based on query type and elements
-  if (row.name) {
-    const elements = Array.isArray(row.queryElements) ? row.queryElements.length : 
-                     (String(row.queryElements || "").split(",").length);
-    const origLength = String(row.name).length;
-    sanitized.name = `${row.queryType || "Query"} (${elements} elements, ${origLength} chars)`;
-  }
-  
-  return sanitized;
+  return {
+    ...row,
+    sqlInput: sanitizeSqlIdentifiersInPlace(pickRawSqlText(row)),
+  };
 }
 
 function issueMarkdown(row) {
   const sanitized = sanitizeFailureData(row);
-  
+
   const queryId = row.id || "unknown";
   const queryTitle = sanitized.name || "Untitled query";
   const failureStage = stageLabel(row);
@@ -69,6 +170,7 @@ function issueMarkdown(row) {
   const timing = Number(row.timeMs ?? 0);
   const queryType = row.queryType || "unknown";
   const elements = Array.isArray(row.queryElements) ? row.queryElements.join(", ") : String(row.queryElements || "unknown");
+  const sqlInput = sanitized.sqlInput || "-- SQL text unavailable in quality report.\n-- Add failing SQL and anonymize only table/column identifiers.";
 
   return `Use this template for parser/converter failures. Please include sanitized SQL only.
 
@@ -92,19 +194,7 @@ ${databaseTag}
 
 ### SQL Input (sanitized)
 \`\`\`sql
--- Sanitized SQL Pattern: ${queryType}
--- Original query: ${sanitized.name}
--- Elements: ${elements}
--- Created: ${createdAt}
---
--- NOTE: Actual table/column names replaced with generic references
--- to protect sensitive enterprise database definitions.
--- Pattern and structure are preserved for reproducibility.
-
-SELECT col1, col2
-FROM table1
-WHERE col3 = 1
-ORDER BY col4 DESC;
+${sqlInput}
 \`\`\`
 
 ### Observed Output / Error
@@ -142,7 +232,7 @@ table1
 {
   "queryId": "${queryId}",
   "queryType": "${queryType}",
-  "queryElements": [${elements.split(",").map(e => `"${e.trim()}"`).join(", ")}],
+  "queryElements": [${elements.split(",").map((e) => `"${e.trim()}"`).join(", ")}],
   "parseStatus": "${row.parseStatus || "unknown"}",
   "convertStatus": "${row.convertStatus || "unknown"}",
   "correctness": ${correctness},
@@ -168,19 +258,6 @@ Blocks successful conversion for this SQL pattern:
 - [x] SQL and LINQ content is sanitized (no secrets).
 - [x] Query reproduces consistently.
 - [ ] Expected output verified by reviewer.
-
----
-
-### 🔒 Data Safeguarding Notice
-
-**For privacy protection, this issue contains sanitized query information:**
-- Actual table names have been replaced with generic references (table1, table2, etc.)
-- Actual column names have been replaced with generic references (col1, col2, etc.)
-- Specific query text has been abstracted to preserve only pattern and structure
-- This prevents leaking sensitive enterprise database definitions while enabling reproducibility
-
-**To reproduce with your actual schema**: Use the exact same SQL pattern with your production table/column names.`;
-}
 
 ## 7. Action Checklist
 - [ ] Reproduce locally and confirm failure.
@@ -214,7 +291,7 @@ const index = [
   "# Conversion Failure Issue Snapshot",
   "",
   `Generated at: ${new Date().toISOString()}`,
-  `Source report: data/quality-report.json`,
+  "Source report: data/quality-report.json",
   `Total queries: ${rows.length}`,
   `Failures exported: ${created.length}`,
   "",

@@ -1067,6 +1067,16 @@ kbd {
   font-style: italic;
 }
 
+.qa-issue-created {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.35rem;
+  color: var(--ok);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .qa-create-issue-btn {
   background: #2563eb;
   color: white;

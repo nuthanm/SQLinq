@@ -545,24 +545,25 @@ function normalizeQualityRows(rows) {
   return rows
     .filter((row) => !Boolean(row.isTest) && !String(row.name || "").toLowerCase().includes("fmanual"))
     .map((row, idx) => ({
-    id: row.id || `Q${String(idx + 1).padStart(3, "0")}`,
-    name: row.name || `Query ${idx + 1}`,
-    area: row.area || "General",
-    target: String(row.target || "method").toLowerCase(),
-    connectivityMode: String(row.connectivityMode || "without").toLowerCase(),
-    databaseType: String(row.databaseType || "without").toLowerCase(),
-    queryType: row.queryType || null,
-    queryElements: row.queryElements || row.clauseProfile || null,
-    concept: row.concept || row.conversionConcept || null,
-    createdAt: row.createdAt || null,
-    parseStatus: row.parseStatus || "Pass",
-    convertStatus: row.convertStatus || "Pass",
-    correctness: Number(row.correctness ?? 0),
-    exactMatch: Boolean(row.exactMatch),
-    timeMs: Number(row.timeMs ?? 0),
-    status: (() => { const s = row.status || (row.exactMatch ? "Parsing Success" : "Near match"); if (s === "Exact") return "Parsing Success"; if (s === "Failed") return "Parsing Failure"; return s; })(),
-    issue: row.issue || null,
-  }))
+      id: row.id || `Q${String(idx + 1).padStart(3, "0")}`,
+      name: row.name || `Query ${idx + 1}`,
+      area: row.area || "General",
+      target: String(row.target || "method").toLowerCase(),
+      connectivityMode: String(row.connectivityMode || "without").toLowerCase(),
+      databaseType: String(row.databaseType || "without").toLowerCase(),
+      queryType: row.queryType || null,
+      queryElements: row.queryElements || row.clauseProfile || null,
+      concept: row.concept || row.conversionConcept || null,
+      createdAt: row.createdAt || null,
+      parseStatus: row.parseStatus || "Pass",
+      convertStatus: row.convertStatus || "Pass",
+      correctness: Number(row.correctness ?? 0),
+      exactMatch: Boolean(row.exactMatch),
+      timeMs: Number(row.timeMs ?? 0),
+      queryText: row.queryText || row.sql || row.query || row.querySummary || null,
+      status: (() => { const s = row.status || (row.exactMatch ? "Parsing Success" : "Near match"); if (s === "Exact") return "Parsing Success"; if (s === "Failed") return "Parsing Failure"; return s; })(),
+      issue: row.issue || null,
+    }))
     .map((row) => {
       const elements = normalizeElements(
         row.queryElements || parseRecognizedElements(row.status) || parseRecognizedElements(row.name)
@@ -972,6 +973,8 @@ async function createIssueForFailure(failureRow, button) {
         status: failureRow.status,
         failureReason: failureRow.failureReason,
         area: failureRow.area,
+        queryText: failureRow.queryText,
+        querySummary: failureRow.name,
       }),
     });
 
@@ -986,12 +989,10 @@ async function createIssueForFailure(failureRow, button) {
       const row = button.closest("tr");
       if (row) {
         const cell = row.querySelector("td:last-child");
-        if (cell && cfg?.githubUrl) {
-          cell.innerHTML = `<a href="${cfg.githubUrl}/issues/${result.issueNumber}" target="_blank" rel="noopener">#${result.issueNumber} &rarr; ${escapeHtml(cfg.githubUrl.split("/").pop())}</a>`;
+        if (cell) {
+          cell.innerHTML = failureIssueCellHtml(failureRow);
         }
       }
-      button.textContent = "✓ Created";
-      button.disabled = true;
     } else {
       throw new Error(result.message || "Issue creation returned unexpected response");
     }
@@ -1007,6 +1008,23 @@ async function createIssueForFailure(failureRow, button) {
   }
 }
 
+function failureIssueCellHtml(row, index = null) {
+  const issueNo = extractIssueNumber(row.issue);
+  if (issueNo && cfg?.githubUrl) {
+    return `<span class="qa-issue-created">Issue Created</span> <a href="${cfg.githubUrl}/issues/${issueNo}" target="_blank" rel="noopener">#${issueNo} &rarr; ${escapeHtml(cfg.githubUrl.split("/").pop())}</a>`;
+  }
+
+  if (row.issue) {
+    return `<span class="qa-issue-created">Issue Created</span> ${escapeHtml(row.issue)}`;
+  }
+
+  if (index == null) {
+    return '<span class="qa-no-issue">No issue</span>';
+  }
+
+  return `<button type="button" class="qa-create-issue-btn" data-failure-index="${index}">Create issue &rarr;</button>`;
+}
+
 function renderFailureIssues(failures) {
   const panel = document.getElementById("failureIssuesPanel");
   const tbody = document.querySelector("#failureIssuesTable tbody");
@@ -1020,12 +1038,7 @@ function renderFailureIssues(failures) {
   panel.hidden = false;
   tbody.innerHTML = failures
     .map((row, index) => {
-      const issueNo = extractIssueNumber(row.issue);
-      const issueCell = issueNo && cfg?.githubUrl
-        ? `<a href="${cfg.githubUrl}/issues/${issueNo}" target="_blank" rel="noopener">#${issueNo} &rarr; ${escapeHtml(cfg.githubUrl.split("/").pop())}</a>`
-        : row.issue
-          ? escapeHtml(row.issue)
-          : `<button type="button" class="qa-create-issue-btn" data-failure-index="${index}">Create issue &rarr;</button>`;
+      const issueCell = failureIssueCellHtml(row, index);
       return `<tr class="qa-row-risk">
           <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
           <td>${escapeHtml(row.parseStatus)}</td>
