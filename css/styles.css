@@ -51,6 +51,7 @@ select {
 
 a {
   color: var(--accent);
+  text-decoration: none;
 }
 
 code,
@@ -132,6 +133,24 @@ pre {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.nav-pipe {
+  gap: 0.5rem;
+}
+
+.nav-pipe .nav-link {
+  position: relative;
+}
+
+.nav-pipe .nav-link:not(:last-child)::after {
+  content: "|";
+  color: var(--line);
+  position: absolute;
+  right: -0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .nav-link {
@@ -980,6 +999,93 @@ kbd {
   margin: 0.75rem 0 0;
   font-size: 0.8rem;
   color: var(--ink-soft);
+}
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem;
+  gap: 0.2rem;
+  background: var(--paper);
+}
+
+.view-tab {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.view-tab.is-active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.metrics-view {
+  display: none;
+}
+
+.metrics-view.is-active {
+  display: block;
+}
+
+.panel-subhead {
+  margin-top: 1rem;
+}
+
+.segmented-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.segment-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.85rem;
+}
+
+.segment-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+}
+
+.graph-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.graph-row {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.graph-row-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.graph-bar-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+
+.graph-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-deep));
 }
 
 .stats-grid {
@@ -2269,7 +2375,8 @@ kbd {
   .release-timeline,
   .translation-stage,
   .footer-grid,
-  .doc-grid {
+  .doc-grid,
+  .segmented-grid {
     grid-template-columns: 1fr;
   }
 

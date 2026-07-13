@@ -41,13 +41,26 @@
       "properties": {
         "sqlinq.telemetryEndpoint": {
           "type": "string",
-          "default": "",
-          "description": "Optional API endpoint for conversion event sync, for example http://localhost:5173/api/events/conversion"
+          "default": "https://sqlinq.vercel.app/api/events/conversion",
+          "description": "API endpoint for conversion event sync. Override this for local development, for example http://localhost:5173/api/events/conversion"
         },
         "sqlinq.telemetrySource": {
           "type": "string",
           "default": "vscode-extension",
           "description": "Source label stored with synced conversion events"
+        },
+        "sqlinq.databaseType": {
+          "type": "string",
+          "enum": [
+            "mssql",
+            "postgresql",
+            "mysql",
+            "oracle",
+            "sqlite",
+            "connected"
+          ],
+          "default": "connected",
+          "description": "Database tag used in telemetry when connectivity mode is 'with'"
         }
       }
     }

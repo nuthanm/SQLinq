@@ -350,6 +350,9 @@ function normalizeQualityRows(rows) {
     id: row.id || `Q${String(idx + 1).padStart(3, "0")}`,
     name: row.name || `Query ${idx + 1}`,
     area: row.area || "General",
+    target: String(row.target || "method").toLowerCase(),
+    connectivityMode: String(row.connectivityMode || "without").toLowerCase(),
+    databaseType: String(row.databaseType || "without").toLowerCase(),
     parseStatus: row.parseStatus || "Pass",
     convertStatus: row.convertStatus || "Pass",
     correctness: Number(row.correctness ?? 0),
@@ -358,6 +361,104 @@ function normalizeQualityRows(rows) {
     status: row.status || (row.exactMatch ? "Exact" : "Near match"),
     issue: row.issue || null,
   }));
+}
+
+function targetLabel(target) {
+  if (target === "query") return "Query syntax";
+  if (target === "ef") return "EF Core IQueryable";
+  if (target === "method") return "Method syntax";
+  return target || "Unknown";
+}
+
+function connectivityLabel(mode) {
+  return mode === "with" ? "With DB" : "Without DB";
+}
+
+function databaseLabel(dbType) {
+  if (!dbType || dbType === "without" || dbType === "none") return "Without database";
+  if (dbType === "connected") return "Connected database";
+  return dbType.toUpperCase();
+}
+
+function summarizeGroups(rows, keySelector) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    const key = keySelector(row);
+    if (!groups.has(key)) {
+      groups.set(key, { key, total: 0, exact: 0, correctness: 0, time: 0 });
+    }
+    const g = groups.get(key);
+    g.total += 1;
+    if (row.exactMatch) g.exact += 1;
+    g.correctness += row.correctness;
+    g.time += row.timeMs;
+  });
+
+  return [...groups.values()]
+    .map((g) => ({
+      key: g.key,
+      total: g.total,
+      exactRate: g.total ? (g.exact / g.total) * 100 : 0,
+      avgCorrectness: g.total ? g.correctness / g.total : 0,
+      avgTime: g.total ? g.time / g.total : 0,
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
+function renderGroupTable(tableId, groups, labelSelector) {
+  const body = document.querySelector(`#${tableId} tbody`);
+  if (!body) return;
+
+  if (!groups.length) {
+    body.innerHTML = '<tr><td colspan="5">No grouped metrics yet.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = groups.map((g) => `
+    <tr>
+      <td>${escapeHtml(labelSelector(g.key))}</td>
+      <td>${g.total}</td>
+      <td>${g.exactRate.toFixed(1)}%</td>
+      <td>${g.avgCorrectness.toFixed(1)}%</td>
+      <td>${toMs(g.avgTime)}</td>
+    </tr>
+  `).join("");
+}
+
+function renderGroupGraph(containerId, groups, labelSelector) {
+  const root = document.getElementById(containerId);
+  if (!root) return;
+
+  if (!groups.length) {
+    root.innerHTML = '<p class="caption">No grouped metrics yet.</p>';
+    return;
+  }
+
+  root.innerHTML = groups.map((g) => `
+    <div class="graph-row">
+      <div class="graph-row-top">
+        <span>${escapeHtml(labelSelector(g.key))}</span>
+        <span>${g.total} query(s) · ${g.exactRate.toFixed(1)}% exact</span>
+      </div>
+      <div class="graph-bar-track">
+        <div class="graph-bar" style="width:${Math.max(4, Math.min(100, g.exactRate)).toFixed(1)}%"></div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderSegmentedMetrics(rows) {
+  const byDb = summarizeGroups(rows, (row) => row.databaseType);
+  const byConnectivity = summarizeGroups(rows, (row) => row.connectivityMode);
+  const byTarget = summarizeGroups(rows, (row) => row.target);
+
+  renderGroupTable("qaDbTable", byDb, databaseLabel);
+  renderGroupTable("qaConnectivityTable", byConnectivity, connectivityLabel);
+  renderGroupTable("qaTargetTable", byTarget, targetLabel);
+
+  renderGroupGraph("qaDbGraph", byDb, databaseLabel);
+  renderGroupGraph("qaConnectivityGraph", byConnectivity, connectivityLabel);
+  renderGroupGraph("qaTargetGraph", byTarget, targetLabel);
 }
 
 function setQualityPill(text, mode = "live") {
@@ -396,8 +497,9 @@ function renderQualityDashboard(report) {
 
     const body = document.querySelector("#qaTable tbody");
     if (body) {
-      body.innerHTML = '<tr><td colspan="8">- No benchmark data published yet. Run benchmark pipeline and import report.</td></tr>';
+      body.innerHTML = '<tr><td colspan="11">- No benchmark data published yet. Run benchmark pipeline and import report.</td></tr>';
     }
+    renderSegmentedMetrics([]);
     const caption = document.getElementById("qaCaption");
     if (caption) {
       caption.textContent = "No benchmark report available yet. Publish data from benchmark pipeline to enable live trust metrics.";
@@ -455,6 +557,9 @@ function renderQualityDashboard(report) {
         const statusClass = row.status === "Exact" ? "qa-good" : row.status === "Near match" ? "qa-warn" : "qa-risk";
         return `<tr>
           <td>${escapeHtml(row.id)} · ${escapeHtml(row.name)}</td>
+          <td>${escapeHtml(targetLabel(row.target))}</td>
+          <td>${escapeHtml(connectivityLabel(row.connectivityMode))}</td>
+          <td>${escapeHtml(databaseLabel(row.databaseType))}</td>
           <td>${escapeHtml(row.parseStatus)}</td>
           <td>${escapeHtml(row.convertStatus)}</td>
           <td>${row.correctness.toFixed(1)}%</td>
@@ -467,6 +572,8 @@ function renderQualityDashboard(report) {
       .join("");
   }
 
+  renderSegmentedMetrics(rows);
+
   const caption = document.getElementById("qaCaption");
   if (caption) {
     const suiteVersion = report?.suiteVersion || "local";
@@ -474,6 +581,29 @@ function renderQualityDashboard(report) {
     const releaseTarget = report?.releaseTarget || "n/a";
     caption.textContent = `Suite ${suiteVersion} for ${releaseTarget} · ${total} queries · exact ${exact}/${total} · avg correctness ${correctnessAvg.toFixed(1)}% · avg convert ${toMs(avgTime)} · updated ${generatedAt}`;
   }
+}
+
+function setupMetricsViewToggle() {
+  const tabs = document.querySelectorAll("[data-metrics-view]");
+  const panels = document.querySelectorAll("[data-metrics-view-panel]");
+  if (!tabs.length || !panels.length) return;
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const view = tab.getAttribute("data-metrics-view");
+      tabs.forEach((btn) => {
+        const active = btn === tab;
+        btn.classList.toggle("is-active", active);
+        btn.setAttribute("aria-selected", String(active));
+      });
+
+      panels.forEach((panel) => {
+        const active = panel.getAttribute("data-metrics-view-panel") === view;
+        panel.classList.toggle("is-active", active);
+        panel.hidden = !active;
+      });
+    });
+  });
 }
 
 async function loadQualityDashboard() {
@@ -977,6 +1107,7 @@ window.addEventListener("scroll", updateScrollControls, { passive: true });
 window.addEventListener("resize", updateScrollControls);
 
 applyBranding();
+setupMetricsViewToggle();
 if (document.getElementById("qaTable")) {
   loadQualityDashboard();
 }

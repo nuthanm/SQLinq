@@ -21,8 +21,7 @@
         <span class="brand-mark" aria-hidden="true"></span>
         <span class="brand-name" data-bind="productName">SQLinq</span>
       </a>
-      <nav class="nav" aria-label="Page navigation">
-        <a class="nav-link" href="/">Home</a>
+      <nav class="nav nav-pipe" aria-label="Page navigation">
         <a class="nav-link" href="/visual-workflow">Visual workflow</a>
         <a class="nav-link" href="/github-stats">GitHub stats</a>
         <a class="nav-link is-active" href="/metric-details">Metric details</a>
@@ -35,6 +34,7 @@
       <p class="eyebrow">Trust reporting</p>
       <h1>Metric details</h1>
       <p class="lede">Detailed conversion quality, performance, and issue-coverage data from live conversion events or the latest benchmark report.</p>
+      <p class="page-note">Enterprise-safe telemetry: raw SQL text and generated LINQ are not persisted. Metrics are based on status, timing, syntax target, connectivity mode, and query fingerprint metadata.</p>
     </section>
 
     <div class="shell stats-grid">
@@ -78,27 +78,117 @@
 
     <div class="shell panel">
       <div class="panel-head">
-        <h2>Per-query conversion trust report</h2>
-        <span class="live-pill is-live" id="qaSuitePill">Live conversion snapshot</span>
+        <h2>Conversion analytics</h2>
+        <div class="view-toggle" role="tablist" aria-label="Metrics view">
+          <button type="button" id="metricsViewTableBtn" class="view-tab is-active" data-metrics-view="table" role="tab" aria-selected="true">Table view</button>
+          <button type="button" id="metricsViewGraphBtn" class="view-tab" data-metrics-view="graph" role="tab" aria-selected="false">Graph view</button>
+        </div>
       </div>
-      <div class="table-wrap">
-        <table class="data-table" id="qaTable">
-          <thead>
-            <tr>
-              <th>Query</th>
-              <th>Parse</th>
-              <th>Convert</th>
-              <th>Correctness</th>
-              <th>Exact match</th>
-              <th>Time</th>
-              <th>Status</th>
-              <th>Issue</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="8">Loading quality suite...</td></tr>
-          </tbody>
-        </table>
+
+      <div class="metrics-view is-active" id="metricsViewTable" data-metrics-view-panel="table">
+        <div class="segmented-grid">
+          <article class="segment-card">
+            <h3>Database mode breakdown</h3>
+            <div class="table-wrap">
+              <table class="data-table" id="qaDbTable">
+                <thead>
+                  <tr>
+                    <th>Database</th>
+                    <th>Queries</th>
+                    <th>Exact rate</th>
+                    <th>Avg correctness</th>
+                    <th>Avg time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="5">Loading database breakdown...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <article class="segment-card">
+            <h3>Connectivity mode breakdown</h3>
+            <div class="table-wrap">
+              <table class="data-table" id="qaConnectivityTable">
+                <thead>
+                  <tr>
+                    <th>Connectivity</th>
+                    <th>Queries</th>
+                    <th>Exact rate</th>
+                    <th>Avg correctness</th>
+                    <th>Avg time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="5">Loading connectivity breakdown...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <article class="segment-card">
+            <h3>Syntax target breakdown</h3>
+            <div class="table-wrap">
+              <table class="data-table" id="qaTargetTable">
+                <thead>
+                  <tr>
+                    <th>Syntax</th>
+                    <th>Queries</th>
+                    <th>Exact rate</th>
+                    <th>Avg correctness</th>
+                    <th>Avg time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="5">Loading syntax breakdown...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+
+        <div class="panel-head panel-subhead">
+          <h2>Per-query conversion trust report</h2>
+          <span class="live-pill is-live" id="qaSuitePill">Live conversion snapshot</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="qaTable">
+            <thead>
+              <tr>
+                <th>Query</th>
+                <th>Syntax</th>
+                <th>Connectivity</th>
+                <th>Database</th>
+                <th>Parse</th>
+                <th>Convert</th>
+                <th>Correctness</th>
+                <th>Exact match</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Issue</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="11">Loading quality suite...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="metrics-view" id="metricsViewGraph" data-metrics-view-panel="graph" hidden>
+        <div class="segmented-grid">
+          <article class="segment-card">
+            <h3>Database mode graph</h3>
+            <div id="qaDbGraph" class="graph-list"></div>
+          </article>
+          <article class="segment-card">
+            <h3>Connectivity mode graph</h3>
+            <div id="qaConnectivityGraph" class="graph-list"></div>
+          </article>
+          <article class="segment-card">
+            <h3>Syntax target graph</h3>
+            <div id="qaTargetGraph" class="graph-list"></div>
+          </article>
+        </div>
       </div>
       <p class="caption" id="qaCaption">Live conversion events are stored in the backend and surfaced here when telemetry is enabled.</p>
       <p class="caption">Confidence model: 55% correctness score + 35% exact-match rate + 10% failure-rate stability factor.</p>

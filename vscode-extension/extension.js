@@ -1,6 +1,8 @@
 const vscode = require('vscode');
 const { convertSqlToLinq } = require('./src/sqlinq-converter');
 
+const DEFAULT_TELEMETRY_ENDPOINT = 'https://sqlinq.vercel.app/api/events/conversion';
+
 const SAMPLE_SQL = `SELECT CustomerId, Name
 FROM Customers
 WHERE IsActive = 1
@@ -8,9 +10,43 @@ ORDER BY Name;`;
 
 function getTelemetryConfig() {
   const cfg = vscode.workspace.getConfiguration('sqlinq');
+  const configured = String(cfg.get('telemetryEndpoint') || '').trim();
+  const databaseType = String(cfg.get('databaseType') || 'connected').trim().toLowerCase();
   return {
-    endpoint: String(cfg.get('telemetryEndpoint') || '').trim(),
+    endpoint: configured || DEFAULT_TELEMETRY_ENDPOINT,
     source: String(cfg.get('telemetrySource') || 'vscode-extension').trim(),
+    databaseType,
+  };
+}
+
+function fnv1a32(value) {
+  let hash = 0x811c9dc5;
+  const text = String(value || '');
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+function buildSafeQuerySummary(sqlText) {
+  const compact = String(sqlText || '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--.*$/gm, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const clauses = [];
+  if (/\bselect\b/i.test(compact)) clauses.push('SELECT');
+  if (/\bfrom\b/i.test(compact)) clauses.push('FROM');
+  if (/\bwhere\b/i.test(compact)) clauses.push('WHERE');
+  if (/\border\s+by\b/i.test(compact)) clauses.push('ORDER BY');
+  if (/\bgroup\s+by\b/i.test(compact)) clauses.push('GROUP BY');
+  if (/\bjoin\b/i.test(compact)) clauses.push('JOIN');
+  return {
+    queryFingerprint: `f${fnv1a32(compact)}`,
+    querySummary: clauses.length ? `Clauses: ${clauses.join(', ')}` : 'SQL conversion',
+    sqlLength: compact.length,
+    clauseProfile: clauses,
   };
 }
 
@@ -44,7 +80,11 @@ async function sendConversionEvent(data) {
     await fetch(telemetry.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: telemetry.source, ...data }),
+      body: JSON.stringify({
+        source: telemetry.source,
+        databaseType: data.connectivityMode === 'with' ? telemetry.databaseType : 'without',
+        ...data,
+      }),
       signal: controller.signal,
     });
   } catch {
@@ -137,13 +177,13 @@ async function convertSelectionDirect(editor, target = 'method') {
 
   const start = Date.now();
   const result = convertSqlToLinq(sqlText, target);
+  const safeSummary = buildSafeQuerySummary(sqlText);
   if (!result.ok) {
     vscode.window.showErrorMessage(result.error);
     await sendConversionEvent({
       connectivityMode: 'without',
-      sql: sqlText,
       target,
-      output: '',
+      ...safeSummary,
       parseStatus: 'Fail',
       convertStatus: 'Fail',
       correctness: 0,
@@ -163,9 +203,8 @@ async function convertSelectionDirect(editor, target = 'method') {
   const inferred = inferStatuses(result);
   await sendConversionEvent({
     connectivityMode: 'without',
-    sql: sqlText,
     target,
-    output: result.output,
+    ...safeSummary,
     parseStatus: inferred.parseStatus,
     convertStatus: inferred.convertStatus,
     correctness: inferred.correctness,
@@ -361,6 +400,7 @@ function activate(context) {
         const connectivity = getConnectivityDetails(connectivityMode);
         const start = Date.now();
         const result = buildInitialConversion(message.sql || SAMPLE_SQL, message.target || 'method');
+        const safeSummary = buildSafeQuerySummary(message.sql || SAMPLE_SQL);
         panel.webview.postMessage({
           type: 'result',
           status: result.ok
@@ -378,9 +418,8 @@ function activate(context) {
           const inferred = inferStatuses(result);
           await sendConversionEvent({
             connectivityMode,
-            sql: message.sql || SAMPLE_SQL,
             target: message.target || 'method',
-            output: result.ok ? result.output : '',
+            ...safeSummary,
             parseStatus: inferred.parseStatus,
             convertStatus: inferred.convertStatus,
             correctness: inferred.correctness,
@@ -450,13 +489,13 @@ function activate(context) {
 
     const start = Date.now();
     const result = convertSqlToLinq(sqlText, target.value);
+    const safeSummary = buildSafeQuerySummary(sqlText);
     if (!result.ok) {
       vscode.window.showErrorMessage(result.error);
       await sendConversionEvent({
         connectivityMode: 'without',
-        sql: sqlText,
         target: target.value,
-        output: '',
+        ...safeSummary,
         parseStatus: 'Fail',
         convertStatus: 'Fail',
         correctness: 0,
@@ -480,9 +519,8 @@ function activate(context) {
     const inferred = inferStatuses(result);
     await sendConversionEvent({
       connectivityMode: 'without',
-      sql: sqlText,
       target: target.value,
-      output: result.output,
+      ...safeSummary,
       parseStatus: inferred.parseStatus,
       convertStatus: inferred.convertStatus,
       correctness: inferred.correctness,

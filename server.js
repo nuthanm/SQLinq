@@ -134,17 +134,23 @@ async function loadLatestQualityFromDb() {
 
 function summarizeConversionEvent(row, index) {
   const payload = row.payload || {};
-  const sqlText = String(payload.sql || payload.message || '').trim();
-  const firstLine = sqlText.split(/\r?\n/).find(Boolean) || '';
-  const displayName = firstLine ? firstLine.slice(0, 72) : `Conversion event ${index + 1}`;
-  const area = payload.connectivityMode
-    ? `${payload.connectivityMode} connectivity`
-    : row.connectivity_mode || 'Live conversion';
+  const fingerprint = String(payload.queryFingerprint || '').trim();
+  const sqlSummary = String(payload.querySummary || payload.message || '').trim();
+  const displayName = fingerprint
+    ? `Query ${fingerprint}`
+    : (sqlSummary ? sqlSummary.slice(0, 72) : `Conversion event ${index + 1}`);
+  const connectivityMode = payload.connectivityMode || row.connectivity_mode || 'without';
+  const target = payload.target || 'method';
+  const databaseType = payload.databaseType || (connectivityMode === 'with' ? 'connected' : 'without');
+  const area = `${connectivityMode} connectivity`;
 
   return {
     id: payload.queryId || `E${String(row.id).padStart(4, '0')}`,
     name: displayName,
     area,
+    target,
+    connectivityMode,
+    databaseType,
     parseStatus: row.parse_status,
     convertStatus: row.convert_status,
     correctness: Number(row.correctness || 0),
@@ -295,6 +301,23 @@ app.get("/api/dashboard/conversion-events", async (_req, res) => {
 
 app.post("/api/events/conversion", async (req, res) => {
   const payload = req.body || {};
+  const sanitizedPayload = {
+    source: payload.source || "vscode-extension",
+    connectivityMode: payload.connectivityMode || "without",
+    target: payload.target || "method",
+    databaseType: payload.databaseType || "without",
+    parseStatus: payload.parseStatus || "Unknown",
+    convertStatus: payload.convertStatus || "Unknown",
+    correctness: payload.correctness == null ? null : Number(payload.correctness),
+    exactMatch: payload.exactMatch == null ? null : Boolean(payload.exactMatch),
+    timeMs: payload.timeMs == null ? null : Number(payload.timeMs),
+    issue: payload.issue || null,
+    message: payload.message || null,
+    queryFingerprint: payload.queryFingerprint || null,
+    querySummary: payload.querySummary || null,
+    sqlLength: payload.sqlLength == null ? null : Number(payload.sqlLength),
+    clauseProfile: Array.isArray(payload.clauseProfile) ? payload.clauseProfile : [],
+  };
 
   if (!pool) {
     return res.status(202).json({
@@ -311,15 +334,15 @@ app.post("/api/events/conversion", async (req, res) => {
         correctness, exact_match, time_ms, issue_ref, payload
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [
-        payload.source || "vscode-extension",
-        payload.connectivityMode || "without",
-        payload.parseStatus || "Unknown",
-        payload.convertStatus || "Unknown",
-        payload.correctness == null ? null : Number(payload.correctness),
-        payload.exactMatch == null ? null : Boolean(payload.exactMatch),
-        payload.timeMs == null ? null : Number(payload.timeMs),
-        payload.issue || null,
-        payload,
+        sanitizedPayload.source,
+        sanitizedPayload.connectivityMode,
+        sanitizedPayload.parseStatus,
+        sanitizedPayload.convertStatus,
+        sanitizedPayload.correctness,
+        sanitizedPayload.exactMatch,
+        sanitizedPayload.timeMs,
+        sanitizedPayload.issue,
+        sanitizedPayload,
       ]
     );
     return res.status(202).json({ accepted: true, stored: true });
