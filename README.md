@@ -1,224 +1,135 @@
 # SQLinq
 
-**Free SQL to LINQ for Visual Studio and VS Code.**
+Official project repository for SQLinq, a free developer tool focused on converting SQL queries into readable, idiomatic LINQ for everyday engineering workflows.
 
-Convert complex T-SQL into idiomatic LINQ inside the IDE — with explainable rewrites, execution-plan suggestions, and a dialect-provider architecture built to grow beyond Microsoft SQL Server.
+[![Website](https://img.shields.io/badge/website-live-0A7B83?style=for-the-badge)](https://sqlinq.vercel.app)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-1f6f43?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![VS Code](https://img.shields.io/badge/VS_Code-Extension-0065A9?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
+[![Phase](https://img.shields.io/badge/phase-1-8A3FFC?style=for-the-badge)](https://github.com/nuthanm/SQLinq)
+[![GitHub Stars](https://img.shields.io/github/stars/nuthanm/SQLinq?style=for-the-badge)](https://github.com/nuthanm/SQLinq/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/nuthanm/SQLinq?style=for-the-badge)](https://github.com/nuthanm/SQLinq/issues)
 
-> Phase 1 focus: **Microsoft SQL Server** · **Visual Studio** · **VS Code** · **forever free**
+## What This Project Is Building
 
-**Repository:** https://github.com/nuthanm/SQLinq
+SQLinq is being developed as a practical SQL-to-LINQ platform for both Visual Studio and VS Code, with an emphasis on:
 
----
+- accurate and explainable conversion
+- confidence and quality reporting
+- transparent handling of unsupported patterns
+- phase-based delivery with measurable progress
 
-## Rename the product (`.env` only)
+## Current Scope (Phase 1)
 
-Product branding is controlled from `.env`. Change the name there, then sync:
+Phase 1 focuses on a stable and verifiable baseline:
 
-```bash
-# edit .env → PRODUCT_NAME=YourName
-npm run sync-config
+- Microsoft SQL Server-first parsing and conversion
+- offline conversion workflow (no DB required)
+- pass, partial, and failure visibility
+- issue-linked failure tracking for upcoming releases
+- trust dashboard backed by benchmark result files
+
+## Product Direction
+
+SQLinq is being built to evolve from a converter into a broader SQL engineering assistant.
+
+Planned direction includes:
+
+- stronger dialect support through provider architecture
+- improved LINQ emission styles (method/query/EF usage patterns)
+- optional schema-aware validation when DB connectivity is enabled
+- execution-plan oriented suggestions and diagnostics
+
+## Architecture (Target)
+
+```text
+IDE Shell (VS / VS Code) -> Conversion Service -> IDialectProvider (MSSQL first)
+                                               -> Emit (Method / Query / EF)
+                                               -> Plan Advisor (optional)
 ```
 
-That regenerates `js/site-config.js`. Keep product naming out of scattered source files — use `window.__SITE_CONFIG__` / `data-bind` instead.
+## Repository Structure
 
-| Key | Purpose |
-|---|---|
-| `PRODUCT_NAME` | Display name (default: SQLinq) |
-| `PRODUCT_TAGLINE` | Short tagline |
-| `PRODUCT_PHASE` | Current phase label |
-| `PRODUCT_SINCE_DATE` | Public “since” clock for progress views |
-| `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_URL` | Live stats + commit grid |
-| `CREDITS_TEXT` | Acknowledgments on the site footer |
+- `index.html`, `about.html`, `privacy.html`, and related pages: public-facing website
+- `server.js`: Express server for site and APIs
+- `js/`, `css/`, `assets/`: frontend behavior and styling
+- `data/`: quality metrics and reporting artifacts
+- `db/schema.sql`: database schema for stored quality/event data
+- `scripts/`: quality report generation and import scripts
+- `vscode-extension/`: VS Code extension source and packaging
 
-Copy from `.env.example` if needed.
+## Quick Start
 
----
+### Requirements
 
-## Web application
+- Node.js 18+
 
-Run the app with the Node server:
+### Install
+
+```bash
+npm install
+```
+
+### Run Local Site
 
 ```bash
 npm start
 ```
 
-This serves the landing page and API from `server.js`.
+Default server entry point: `server.js`
 
-| Area | Contents |
-|---|---|
-| Product | Brand-first landing |
-| Get started | Shared IDE flow (per-editor polish later) |
-| Live progress | **Live** GitHub stars/forks/issues + commit heatmap + filterable commit grid |
-| Engineering | Topics + `IDialectProvider` sketch |
-| Extension app | Conversion workflow, concepts, results, quality confidence, issue-linked failures |
-
-Live progress calls the public GitHub API for `GITHUB_OWNER/GITHUB_REPO` and quality APIs from this app backend.
-
----
-
-## Phase 1 (production scope)
-
-Phase 1 intentionally ships a working, trust-focused subset:
-
-- SQL to LINQ conversion without database connectivity
-- conversion quality and confidence metrics
-- parser/converter pass/partial/failure visibility
-- issue-linked failure tracking for upcoming releases
-
-This phase-first approach prevents shipping non-working features and keeps each release verifiable.
-
----
-
-## Architecture (target)
-
-```
-IDE Shell (VS / VS Code) → Conversion Service → IDialectProvider (MSSQL first)
-                                              → Emit (Method / Query / EF)
-                                              → Plan Advisor (optional)
-```
-
-VS and VS Code UIs can diverge later while sharing the conversion core.
-
----
-
-## Connectivity modes (developer-facing)
-
-Both the web application and VS Code extension UI now expose two modes:
-
-- Without DB connectivity
-    - SQL text to LINQ conversion (offline)
-    - recognized-clause summary
-    - unsupported-clause warnings
-    - no schema validation or execution-plan retrieval
-- With DB connectivity
-    - everything in offline mode
-    - schema/type validation opportunities
-    - execution-plan guidance and optional sample-row checks
-
-This keeps the baseline workflow free and offline, while making richer validation explicit when teams opt into database connectivity.
-
----
-
-## Neon/PostgreSQL integration
-
-Database-backed tracking uses `DATABASE_URL` (Neon compatible).
-
-### Schema
-
-- SQL schema: `db/schema.sql`
-- Events endpoint for extension sync: `POST /api/events/conversion`
-
-Apply schema in your Neon database (psql or migration workflow), then start app.
-
-### Quality report ingestion
-
-1. Generate report from benchmark rows:
+## Available Commands
 
 ```bash
-npm run quality-report
+npm start              # sync config and run site/API server
+npm run sync-config    # regenerate site config from env values
+npm run quality-report # build quality summary from raw query outcomes
+npm run import-quality # import generated quality report into database
 ```
 
-2. Import into Neon DB:
+## Connectivity Modes
+
+### Without DB Connectivity
+
+- SQL text to LINQ conversion
+- recognized and unsupported clause visibility
+- no schema validation or execution-plan retrieval
+
+### With DB Connectivity
+
+- includes all offline capabilities
+- schema/type validation opportunities
+- richer diagnostics and plan-oriented guidance
+
+## Deployment
+
+This project is configured for Vercel.
 
 ```bash
-npm run import-quality
-```
-
-3. Landing page reads from `/api/dashboard/quality`.
-
-If no data is available, UI shows `-` with meaningful messaging.
-
----
-
-## Quality tracking pipeline (real UI stats)
-
-The trust dashboard is now driven by benchmark data files instead of hardcoded counts.
-
-### Files
-
-- Raw per-query outcomes: `data/quality-query-results.json`
-- Generated report consumed by UI: `data/quality-report.json`
-- Generator script: `scripts/generate-quality-report.mjs`
-
-### Update flow
-
-1. Write or export each benchmark query outcome to `data/quality-query-results.json`:
-    - parser result (`parserOk`)
-    - converter result (`converterOk`)
-    - correctness percentage
-    - exact match boolean
-    - conversion time in ms
-    - issue link (if partial/failed)
-    - failure reason and release bucket
-2. Generate UI report:
-
-```bash
-npm run quality-report
-```
-
-3. The dashboard in `index.html` reads `data/quality-report.json` and shows:
-    - correctness, exact-match rate, confidence
-    - success/partial/failure counts
-    - parser failures and converter failures
-    - slowest/p95 timing
-    - per-query parse/convert status with issue links
-
-This gives developers clear trust signals while enforcing that partial and failed queries are tracked into upcoming releases.
-
----
-
-## Deploy to Vercel
-
-This project is configured for Vercel with `vercel.json` and a serverless Express entry in `server.js`.
-
-### Prerequisites
-
-- Node.js 18+
-- A Vercel account
-
-### Deploy with Vercel CLI
-
-```bash
-npm install -g vercel
-vercel login
 vercel
-```
-
-For production deployment:
-
-```bash
 vercel --prod
 ```
 
-### Environment variables
+Environment variable notes:
 
-Set these in Vercel Project Settings → Environment Variables:
+- `DATABASE_URL` is optional; required only for DB-backed API persistence
+- quality dashboard can fall back to local report data when DB is unavailable
 
-- `DATABASE_URL` (optional, required for DB-backed APIs)
-- any values you also keep in `.env` for branding/site config (if needed at build/runtime)
+## Roadmap Snapshot
 
-If `DATABASE_URL` is not set:
+- [x] baseline converter flow in VS Code extension
+- [x] quality reporting pipeline and dashboard integration
+- [ ] expand SQL dialect coverage beyond MSSQL
+- [ ] deeper explanation output for conversion reasoning
+- [ ] enhanced release analytics and benchmark automation
 
-- `/api/health` stays available
-- `/api/dashboard/quality` falls back to `data/quality-report.json`
-- `/api/events/conversion` returns accepted=false/stored=false by design
+## Contributing
 
-### Post-deploy checks
+Contributions, bug reports, and feature requests are welcome.
 
-After deployment, verify:
-
-- `GET /api/health`
-- `GET /api/dashboard/quality`
-- site loads at `/` and deep links like `/#home`
-
----
-
-## Acknowledgments
-
-Website and extension UX structure were shaped with AI pair-programming assistance (**Composer**).
-
----
+1. Open an issue describing the problem or proposal.
+2. Fork the repository and create a feature branch.
+3. Submit a pull request with clear context and tests where applicable.
 
 ## Disclaimer
 
-Application UI and documentation scaffolding. Not affiliated with Microsoft. Confirm trademark clearance before Marketplace publish if the public name changes.
+SQLinq is an independent project and is not affiliated with Microsoft. Validate naming and trademark requirements before marketplace publication.
