@@ -867,6 +867,68 @@ app.post("/api/github-issues/create", async (req, res) => {
   }
 });
 
+function deriveDbRecommendations(explainText) {
+  const recs = [];
+  const text = String(explainText || '');
+  if (/Seq Scan/i.test(text)) recs.push('Seq Scan detected — consider adding an index on the filtered column(s).');
+  if (/cost=\d+\.\d+\.\.(\d{4,})/i.test(text)) recs.push('High estimated cost — review WHERE predicates and ensure statistics are up to date.');
+  if (/Sort\s+.*cost/i.test(text) && /Sort Method:\s*external/i.test(text)) recs.push('External sort used — increase work_mem or add a covering index for the ORDER BY columns.');
+  if (/Hash Join/i.test(text)) recs.push('Hash Join used — verify join columns are indexed and statistics are current.');
+  if (/Nested Loop/i.test(text) && /rows=\d{5,}/i.test(text)) recs.push('Nested Loop over many rows — consider a Hash Join or Merge Join by ensuring index availability.');
+  if (!recs.length) recs.push('No major performance concerns detected in the execution plan.');
+  return recs;
+}
+
+app.post("/api/db/execute", async (req, res) => {
+  if (!pool) {
+    return res.status(503).json({ ok: false, message: "Database not configured on the server. Set DATABASE_URL to enable live query execution." });
+  }
+
+  const { sql, explain = false } = req.body || {};
+  if (!sql || typeof sql !== "string" || !sql.trim()) {
+    return res.status(400).json({ ok: false, message: "sql is required." });
+  }
+
+  const stripped = sql.trim().replace(/\/\*[\s\S]*?\*\//g, "").replace(/--.*$/gm, "").trim();
+  if (!/^(SELECT|WITH|EXPLAIN)\b/i.test(stripped)) {
+    return res.status(400).json({ ok: false, message: "Only SELECT queries are permitted for live execution." });
+  }
+
+  try {
+    const start = Date.now();
+    const safeQuery = /LIMIT\s+\d+/i.test(stripped) ? sql : `${sql.replace(/;\s*$/, "")} LIMIT 100`;
+    const result = await pool.query(safeQuery);
+    const elapsedMs = Date.now() - start;
+
+    let explainOutput = null;
+    let recommendations = [];
+
+    if (explain) {
+      try {
+        const explainSql = sql.trim().replace(/;\s*$/, "");
+        const planResult = await pool.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) ${explainSql}`);
+        explainOutput = planResult.rows.map((r) => Object.values(r)[0]).join("\n");
+        recommendations = deriveDbRecommendations(explainOutput);
+      } catch (explainErr) {
+        explainOutput = `EXPLAIN failed: ${explainErr.message}`;
+        recommendations = ['Could not retrieve execution plan.'];
+      }
+    }
+
+    return res.json({
+      ok: true,
+      rowCount: result.rowCount,
+      columns: result.fields ? result.fields.map((f) => f.name) : [],
+      rows: result.rows.slice(0, 100),
+      elapsedMs,
+      explainOutput,
+      recommendations,
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: err.message });
+  }
+});
+
 app.post("/api/release-compare/save", async (req, res) => {
   try {
     const payload = req.body || {};

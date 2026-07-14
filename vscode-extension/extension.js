@@ -515,7 +515,8 @@ function getWebviewContent(webview, state) {
     'select,textarea,button{font:inherit}',
     'select,textarea{width:100%;box-sizing:border-box;border:1px solid var(--vscode-input-border, #444);border-radius:6px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);padding:8px}',
     'textarea{min-height:220px;resize:vertical;font-family:var(--vscode-editor-font-family, monospace);line-height:1.5}',
-    'pre{margin:0;min-height:220px;white-space:pre-wrap;word-break:break-word;padding:8px;border:1px solid var(--vscode-input-border, #444);border-radius:6px;background:var(--vscode-editor-background)}',
+    'pre{margin:0;min-height:80px;white-space:pre-wrap;word-break:break-word;padding:8px;border:1px solid var(--vscode-input-border, #444);border-radius:6px;background:var(--vscode-editor-background)}',
+    '.linq-pre{min-height:220px}',
     '.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}',
     '.status{margin-top:10px;font-size:12px;opacity:.85}',
     '.outputs{margin-top:10px;border:1px solid var(--vscode-editorWidget-border, #444);border-radius:8px;padding:10px;background:var(--vscode-sideBar-background, transparent)}',
@@ -526,7 +527,16 @@ function getWebviewContent(webview, state) {
     'button{border:1px solid var(--vscode-button-border, transparent);border-radius:6px;padding:8px 12px;cursor:pointer}',
     '.primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}',
     '.secondary{background:transparent;color:var(--vscode-foreground)}',
+    '.danger{background:var(--vscode-inputValidation-errorBackground, #5a1d1d);color:var(--vscode-foreground)}',
     '.muted{font-size:12px;opacity:.8}',
+    '.db-section{margin-top:14px;border:1px solid var(--vscode-editorWidget-border, #444);border-radius:8px;padding:12px;background:var(--vscode-sideBar-background, transparent)}',
+    '.db-section h3{margin:0 0 8px;font-size:13px;font-weight:600}',
+    '.result-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}',
+    '.result-table th,.result-table td{border:1px solid var(--vscode-editorWidget-border, #444);padding:4px 8px;text-align:left}',
+    '.result-table th{background:var(--vscode-sideBar-background, transparent);font-weight:600}',
+    '.rec-list{margin:6px 0 0;padding-left:18px;font-size:12px;line-height:1.6}',
+    '.rec-list li{margin-bottom:2px}',
+    '.shortcut-hint{font-size:11px;opacity:.6;margin-left:6px}',
     '@media (max-width: 900px){.grid{grid-template-columns:1fr}}',
   ].join('');
 
@@ -573,24 +583,33 @@ function getWebviewContent(webview, state) {
       </div>
       <div class="grid" style="margin-top:12px">
         <div class="card">
-          <label for="sql">SQL input</label>
+          <label for="sql">SQL input <span class="shortcut-hint">Ctrl+Shift+L to convert · Ctrl+Shift+Q quick convert · Ctrl+Shift+R run &amp; explain</span></label>
           <textarea id="sql">${initialSql}</textarea>
         </div>
         <div class="card">
           <label>LINQ preview</label>
-          <pre id="output">${initialOutput}</pre>
+          <pre id="output" class="linq-pre">${initialOutput}</pre>
         </div>
       </div>
       <div class="toolbar">
-        <button class="primary" id="convert">Convert</button>
-        <button class="secondary" id="insert">Insert into editor</button>
-        <button class="secondary" id="copy">Copy output</button>
+        <button class="primary" id="convert" title="Ctrl+Shift+L">Convert</button>
+        <button class="secondary" id="insert" title="Insert LINQ into active editor">Insert into editor</button>
+        <button class="secondary" id="copy" title="Copy LINQ to clipboard">Copy output</button>
+        <button class="secondary" id="runQuery" title="Ctrl+Shift+R — Run query against PostgreSQL and show EXPLAIN ANALYZE">Run &amp; Explain</button>
       </div>
       <div class="status" id="status">${initialStatus}</div>
       <div class="status muted" id="telemetryStatus">Telemetry: idle</div>
       <div class="outputs">
         <h3>Expected output results in this mode</h3>
         <ul id="modeOutputs">${connectivityRows}</ul>
+      </div>
+      <div class="db-section" id="dbSection" style="display:none">
+        <h3>Live DB results <span class="muted" id="dbElapsed"></span></h3>
+        <div id="dbResultWrap"></div>
+        <h3 style="margin-top:12px">EXPLAIN ANALYZE</h3>
+        <pre id="dbExplain" style="min-height:60px;font-size:11px"></pre>
+        <h3 style="margin-top:12px">Performance recommendations</h3>
+        <ul class="rec-list" id="dbRecs"></ul>
       </div>
     </div>
     <script nonce="${nonce}">
@@ -602,6 +621,11 @@ function getWebviewContent(webview, state) {
       const status = document.getElementById('status');
       const telemetryStatus = document.getElementById('telemetryStatus');
       const modeOutputs = document.getElementById('modeOutputs');
+      const dbSection = document.getElementById('dbSection');
+      const dbResultWrap = document.getElementById('dbResultWrap');
+      const dbExplain = document.getElementById('dbExplain');
+      const dbRecs = document.getElementById('dbRecs');
+      const dbElapsed = document.getElementById('dbElapsed');
 
       function setState(nextStatus, nextOutput, outputs) {
         status.textContent = nextStatus;
@@ -615,9 +639,29 @@ function getWebviewContent(webview, state) {
         }
       }
 
+      function renderDbResults(data) {
+        dbSection.style.display = '';
+        dbElapsed.textContent = data.elapsedMs != null ? '(' + data.elapsedMs + ' ms · ' + (data.rowCount || 0) + ' rows)' : '';
+        if (data.columns && data.columns.length) {
+          const thead = '<thead><tr>' + data.columns.map((c) => '<th>' + c + '</th>').join('') + '</tr></thead>';
+          const rows = (data.rows || []).map((row) =>
+            '<tr>' + data.columns.map((c) => '<td>' + String(row[c] != null ? row[c] : '') + '</td>').join('') + '</tr>'
+          ).join('');
+          dbResultWrap.innerHTML = '<table class="result-table">' + thead + '<tbody>' + rows + '</tbody></table>';
+        } else {
+          dbResultWrap.textContent = data.message || 'No rows returned.';
+        }
+        dbExplain.textContent = data.explainOutput || '(no plan)';
+        dbRecs.innerHTML = (data.recommendations || []).map((r) => '<li>' + r + '</li>').join('');
+      }
+
       document.getElementById('convert').addEventListener('click', () => {
         telemetryStatus.textContent = 'Telemetry: syncing...';
         vscode.postMessage({ type: 'convert', sql: sql.value, target: target.value, connectivity: connectivity.value });
+      });
+
+      document.getElementById('runQuery').addEventListener('click', () => {
+        vscode.postMessage({ type: 'runQuery', sql: sql.value });
       });
 
       document.getElementById('insert').addEventListener('click', () => {
@@ -652,6 +696,21 @@ function getWebviewContent(webview, state) {
         }
         if (message.type === 'telemetry') {
           telemetryStatus.textContent = message.status;
+        }
+        if (message.type === 'dbResult') {
+          renderDbResults(message.data);
+          status.textContent = message.statusText || 'Query executed.';
+        }
+        if (message.type === 'dbError') {
+          dbSection.style.display = '';
+          dbResultWrap.textContent = 'Error: ' + (message.message || 'Unknown error');
+          dbExplain.textContent = '';
+          dbRecs.innerHTML = '';
+          status.textContent = 'DB execution failed.';
+        }
+        if (message.type === 'autoRunQuery') {
+          sql.value = message.sql || sql.value;
+          vscode.postMessage({ type: 'runQuery', sql: sql.value });
         }
       });
 
@@ -751,6 +810,69 @@ function activate(context) {
         if (!output) return;
 
         await applyConversionToEditor({ output }, editor);
+      }
+
+      if (message.type === 'runQuery') {
+        const telemetry = getTelemetryConfig();
+        const cfg = vscode.workspace.getConfiguration('sqlinq');
+        const dbConnStr = String(cfg.get('dbConnectionString') || '').trim();
+
+        // Derive the DB execute endpoint from the telemetry endpoint base
+        let dbEndpoint = '';
+        if (telemetry.endpoint) {
+          try {
+            const url = new URL(telemetry.endpoint);
+            dbEndpoint = `${url.protocol}//${url.host}/api/db/execute`;
+          } catch { /* ignore */ }
+        }
+
+        if (!dbEndpoint && !dbConnStr) {
+          panel.webview.postMessage({ type: 'dbError', message: 'Configure sqlinq.telemetryEndpoint (server) or sqlinq.dbConnectionString to enable live query execution.' });
+          return;
+        }
+
+        const sqlToRun = String(message.sql || '').trim();
+        if (!sqlToRun) {
+          panel.webview.postMessage({ type: 'dbError', message: 'No SQL to execute.' });
+          return;
+        }
+
+        try {
+          const body = JSON.stringify({ sql: sqlToRun, explain: true, connectionString: dbConnStr || undefined });
+          let response;
+          if (typeof fetch === 'function') {
+            const res = await fetch(dbEndpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body,
+            });
+            response = await res.json();
+          } else {
+            response = await new Promise((resolve, reject) => {
+              const url = new URL(dbEndpoint);
+              const req = https.request({ hostname: url.hostname, port: url.port || 443, path: url.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({ ok: false, message: data }); } });
+              });
+              req.on('error', reject);
+              req.write(body);
+              req.end();
+            });
+          }
+
+          if (response && response.ok) {
+            panel.webview.postMessage({
+              type: 'dbResult',
+              data: response,
+              statusText: `Query returned ${response.rowCount ?? 0} row(s) in ${response.elapsedMs ?? 0} ms.`,
+            });
+          } else {
+            panel.webview.postMessage({ type: 'dbError', message: response?.message || 'DB execution failed.' });
+          }
+        } catch (err) {
+          panel.webview.postMessage({ type: 'dbError', message: err && err.message ? err.message : 'Network error reaching DB endpoint.' });
+        }
       }
     });
 
@@ -859,9 +981,30 @@ function activate(context) {
     await convertSelectionDirect(editor, 'method');
   });
 
+  const runQueryDisposable = vscode.commands.registerCommand('sqlinq.runQuery', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showInformationMessage('Open a SQL file and select a query first.');
+      return;
+    }
+    const sqlText = editor.document.getText(editor.selection).trim() || editor.document.getText().trim();
+    if (!sqlText) {
+      vscode.window.showInformationMessage('Select or open a SQL query first.');
+      return;
+    }
+    const panel = openWebview(sqlText, 'method', 'with');
+    // Signal webview to auto-run DB execution after it's ready
+    setTimeout(() => {
+      if (panel && panel.webview) {
+        panel.webview.postMessage({ type: 'autoRunQuery', sql: sqlText });
+      }
+    }, 400);
+  });
+
   context.subscriptions.push(disposable);
   context.subscriptions.push(uiDisposable);
   context.subscriptions.push(quickDisposable);
+  context.subscriptions.push(runQueryDisposable);
 }
 
 function deactivate() {}

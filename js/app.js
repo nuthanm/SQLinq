@@ -896,7 +896,7 @@ function renderQaRows(rows) {
   const body = document.querySelector("#qaTable tbody");
   if (!body) return;
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="13">No matching rows.</td></tr>';
+    body.innerHTML = '<tr><td colspan="12">No matching rows.</td></tr>';
     return;
   }
   body.innerHTML = rows
@@ -910,10 +910,12 @@ function renderQaRows(rows) {
       const isFailed = row.status === "Parsing Failure" || row.convertStatus === "Fail";
       const statusClass = row.status === "Parsing Success" ? "qa-good" : row.status === "Near match" ? "qa-warn" : "qa-risk";
       const rowClass = isFailed ? ' class="qa-row-risk"' : "";
+      const createBtn = isFailed && !row.issue
+        ? `<button type="button" class="qa-create-issue-btn" data-row-id="${escapeHtml(row.id)}">Create issue &rarr;</button>`
+        : "";
       return `<tr${rowClass}>
           <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
           <td>${escapeHtml((row.queryElements || ["SELECT"]).join(", "))}</td>
-          <td>${escapeHtml(row.concept || conceptLabel(row.target, row.connectivityMode))}</td>
           <td>${escapeHtml(targetLabel(row.target))}</td>
           <td>${escapeHtml(connectivityLabel(row.connectivityMode))}</td>
           <td>${escapeHtml(databaseLabel(row.databaseType))}</td>
@@ -923,7 +925,7 @@ function renderQaRows(rows) {
           <td>${row.exactMatch ? "Yes" : "No"}</td>
           <td>${toMs(row.timeMs)}</td>
           <td><span class="qa-pill ${statusClass}">${escapeHtml(row.status)}</span></td>
-          <td>${issueCell}</td>
+          <td>${issueCell}${createBtn}</td>
         </tr>`;
     })
     .join("");
@@ -1025,37 +1027,14 @@ function failureIssueCellHtml(row, index = null) {
   return `<button type="button" class="qa-create-issue-btn" data-failure-index="${index}">Create issue &rarr;</button>`;
 }
 
-function renderFailureIssues(failures) {
-  const panel = document.getElementById("failureIssuesPanel");
-  const tbody = document.querySelector("#failureIssuesTable tbody");
-  if (!panel || !tbody) return;
-
-  if (!failures.length) {
-    panel.hidden = true;
-    return;
-  }
-
-  panel.hidden = false;
-  tbody.innerHTML = failures
-    .map((row, index) => {
-      const issueCell = failureIssueCellHtml(row, index);
-      return `<tr class="qa-row-risk">
-          <td>${escapeHtml(row.queryType || "Basic SELECT")}</td>
-          <td>${escapeHtml(row.parseStatus)}</td>
-          <td>${escapeHtml(row.convertStatus)}</td>
-          <td><span class="qa-pill qa-risk">${escapeHtml(row.status)}</span></td>
-          <td>${issueCell}</td>
-        </tr>`;
-    })
-    .join("");
-
-  tbody.querySelectorAll(".qa-create-issue-btn").forEach((button) => {
-    button.addEventListener("click", () => {
-      const index = Number(button.getAttribute("data-failure-index"));
-      if (!Number.isInteger(index) || !failures[index]) return;
-      createIssueForFailure(failures[index], button);
-    });
-  });
+function handleFailureIssueClick(e) {
+  const button = e.target.closest(".qa-create-issue-btn");
+  if (!button) return;
+  const rowId = button.getAttribute("data-row-id");
+  if (!rowId) return;
+  const failureRow = qaAllRows.find((r) => r.id === rowId);
+  if (!failureRow) return;
+  createIssueForFailure(failureRow, button);
 }
 
 function setQualityPill(text, mode = "live") {
@@ -1153,7 +1132,6 @@ function renderQualityDashboard(report) {
 
   qaAllRows = rows;
   renderQaRows(rows);
-  renderFailureIssues(failures);
   setupQaFilter();
 
   renderSegmentedMetrics(rows);
@@ -2119,6 +2097,10 @@ window.addEventListener("resize", updateScrollControls);
 
 applyBranding();
 setupMetricsViewToggle();
+const qaTableTbody = document.querySelector("#qaTable tbody");
+if (qaTableTbody) {
+  qaTableTbody.addEventListener("click", handleFailureIssueClick);
+}
 if (document.getElementById("qaTable")) {
   loadQualityDashboard();
 }

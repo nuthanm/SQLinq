@@ -36,6 +36,35 @@
       {
         "command": "sqlinq.openConverterUi",
         "title": "SQLinq: Open Converter UI"
+      },
+      {
+        "command": "sqlinq.runQuery",
+        "title": "SQLinq: Run Query & Explain"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sqlinq.convertSelection",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "sqlinq.convertSelectionQuick",
+        "key": "ctrl+shift+q",
+        "mac": "cmd+shift+q",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "sqlinq.openConverterUi",
+        "key": "ctrl+shift+u",
+        "mac": "cmd+shift+u"
+      },
+      {
+        "command": "sqlinq.runQuery",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "editorHasSelection"
       }
     ],
     "menus": {
@@ -51,8 +80,13 @@
           "group": "navigation@51"
         },
         {
-          "command": "sqlinq.openConverterUi",
+          "command": "sqlinq.runQuery",
+          "when": "editorHasSelection",
           "group": "navigation@52"
+        },
+        {
+          "command": "sqlinq.openConverterUi",
+          "group": "navigation@53"
         }
       ],
       "explorer/context": [
@@ -88,6 +122,11 @@
           ],
           "default": "connected",
           "description": "Database tag used in telemetry when connectivity mode is 'with'"
+        },
+        "sqlinq.dbConnectionString": {
+          "type": "string",
+          "default": "",
+          "description": "PostgreSQL connection string for live query execution, EXPLAIN ANALYZE, and result-set preview (e.g. postgres://user:pass@host/db). Stored in VS Code settings — use a read-only account."
         }
       }
     }
