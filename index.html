@@ -33,31 +33,59 @@
         <div class="hero-atmosphere" aria-hidden="true"></div>
         <div class="shell hero-grid">
           <div class="hero-copy">
-            <p class="brand-hero" data-bind="productName">Product</p>
-            <h1>SQL to LINQ, inside your editor workspace — free for every developer.</h1>
-            <p class="lede" data-bind="siteDescription"></p>
+            <p class="hero-emoji" aria-hidden="true">🧩</p>
+            <h1>The query conversion community building reliable .NET workflows.</h1>
+            <p class="lede">Convert SQL into predictable LINQ, review confidence and quality signals, and ship safer query refactors in your editor.</p>
             <div class="cta-row">
               <button type="button" class="btn btn-primary" data-nav="extension">Open extension app</button>
+              <a class="btn btn-ghost" href="/metric-details">Explore metric details</a>
               <a class="btn btn-ghost" id="githubCta" href="#" target="_blank" rel="noopener">View on GitHub</a>
             </div>
           </div>
           <div class="hero-visual" aria-hidden="true">
-            <div class="hero-code-plane">
-              <div class="plane-label">T-SQL → LINQ</div>
-              <pre class="code-block"><code><span class="tok-kw">SELECT</span> o.OrderId, c.Name, <span class="tok-fn">SUM</span>(oi.Qty)
-<span class="tok-kw">FROM</span> Orders o
-<span class="tok-kw">JOIN</span> Customers c <span class="tok-kw">ON</span> c.Id = o.CustomerId
-<span class="tok-kw">GROUP BY</span> o.OrderId, c.Name;</code></pre>
-              <div class="plane-arrow"></div>
-              <pre class="code-block linq"><code>orders
-  .<span class="tok-fn">Join</span>(customers, o =&gt; o.CustomerId, c =&gt; c.Id,
-    (o, c) =&gt; <span class="tok-kw">new</span> { o, c })
-  .<span class="tok-fn">GroupBy</span>(x =&gt; <span class="tok-kw">new</span> { x.o.OrderId, x.c.Name })
-  .<span class="tok-fn">Select</span>(g =&gt; <span class="tok-kw">new</span> {
-    g.Key.OrderId,
-    g.Key.Name,
-    Total = g.<span class="tok-fn">Sum</span>(x =&gt; x.o.Qty)
-  });</code></pre>
+            <div class="hero-board">
+              <div class="board-head">
+                <span class="board-tab is-active">Main</span>
+                <span class="board-tab">Tasks</span>
+                <span class="board-tab">Libraries</span>
+                <span class="board-tab">Models</span>
+                <span class="board-total">Suite: 2,555,000</span>
+              </div>
+              <div class="board-columns">
+                <section class="board-stack">
+                  <h2>Signals</h2>
+                  <p class="board-chip-row">
+                    <span class="board-chip">JOIN</span>
+                    <span class="board-chip">CTE</span>
+                    <span class="board-chip">GROUP BY</span>
+                    <span class="board-chip">WINDOW</span>
+                  </p>
+                  <ul class="board-mini-list">
+                    <li><span>Correctness score</span><strong>94.2%</strong></li>
+                    <li><span>Exact-match rate</span><strong>88.7%</strong></li>
+                    <li><span>p95 convert time</span><strong>42 ms</strong></li>
+                  </ul>
+                </section>
+                <section class="board-stack board-feed">
+                  <h2>Live feed</h2>
+                  <article class="board-item">
+                    <strong>sqlserver/join-suite</strong>
+                    <span>Updated 2 days ago · score 96.2</span>
+                  </article>
+                  <article class="board-item">
+                    <strong>postgres/window-pack</strong>
+                    <span>Updated 4 days ago · score 92.7</span>
+                  </article>
+                  <article class="board-item">
+                    <strong>cross-apply/edge-cases</strong>
+                    <span>Updated 1 day ago · score 91.8</span>
+                  </article>
+                  <article class="board-item">
+                    <strong>recursive-cte/aggregate</strong>
+                    <span>Updated 3 days ago · score 89.9</span>
+                  </article>
+                </section>
+              </div>
             </div>
           </div>
         </div>
@@ -76,6 +104,36 @@
           <a class="trust-link" href="/metric-details">
             <span class="trust-title">Metrics details</span>
             <span class="trust-desc">Review correctness, exact-match rate, and confidence signals.</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="section shell repo-pattern-section" aria-label="Platform highlights">
+        <header class="section-head repo-pattern-head">
+          <h2>Explore the product in cards</h2>
+          <p>Keep this pattern on the landing page to spotlight the three key areas with the same visual model used in detail pages.</p>
+        </header>
+        <div class="repo-pattern-grid" role="list">
+          <a class="repo-card tone-orange" href="/visual-workflow" role="listitem">
+            <div class="repo-card-top">
+              <p class="repo-card-title"><span class="repo-dot"></span>Visual workflow</p>
+              <p class="repo-card-count">Parse -> Bind -> Rewrite -> Emit</p>
+            </div>
+            <p class="repo-card-desc">See each conversion stage and how SQL intent becomes final LINQ output.</p>
+          </a>
+          <a class="repo-card tone-blue" href="/github-stats" role="listitem">
+            <div class="repo-card-top">
+              <p class="repo-card-title"><span class="repo-dot"></span>GitHub stats</p>
+              <p class="repo-card-count">Live API metrics</p>
+            </div>
+            <p class="repo-card-desc">Watch stars, forks, issues, and commit activity with a real-time feed.</p>
+          </a>
+          <a class="repo-card tone-green" href="/metric-details" role="listitem">
+            <div class="repo-card-top">
+              <p class="repo-card-title"><span class="repo-dot"></span>Metric details</p>
+              <p class="repo-card-count">Quality and trust scores</p>
+            </div>
+            <p class="repo-card-desc">Review correctness, exact-match rates, and failure coverage in one place.</p>
           </a>
         </div>
       </section>

@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="css/styles.css" />
   <script src="js/site-config.js"></script>
 </head>
-<body class="doc-page">
+<body class="doc-page stats-suite">
   <a class="skip" href="#main">Skip to content</a>
 
   <header class="site-header" id="top">
@@ -35,6 +35,72 @@
       <h1>Live GitHub stats</h1>
       <p class="lede">Stars, forks, pull requests, open issues, and commit activity are loaded directly from the public repository API.</p>
       <p class="page-note">Since <time id="liveSinceLabel" datetime=""></time> · refreshed from GitHub API</p>
+    </section>
+
+    <section class="shell repo-pattern-section" aria-label="GitHub metric cards">
+      <div class="repo-pattern-grid repo-pattern-wide" role="list">
+        <article class="repo-card tone-orange" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Stars</p>
+            <p class="repo-card-count" id="cardStars">Live count</p>
+          </div>
+          <p class="repo-card-desc">Community interest in the core SQL to LINQ converter project.</p>
+        </article>
+        <article class="repo-card tone-blue" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Forks</p>
+            <p class="repo-card-count" id="cardForks">Live count</p>
+          </div>
+          <p class="repo-card-desc">Active contributor clones that experiment and propose improvements.</p>
+        </article>
+        <article class="repo-card tone-purple" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Pull requests</p>
+            <p class="repo-card-count" id="cardPullRequests">Open PRs</p>
+          </div>
+          <p class="repo-card-desc">Incoming feature work and bug fixes queued for review and merge.</p>
+        </article>
+        <article class="repo-card tone-green" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Issues</p>
+            <p class="repo-card-count" id="cardIssues">Open issues</p>
+          </div>
+          <p class="repo-card-desc">Tracked defects and enhancement ideas aligned to release planning.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="shell stats-trend-board" aria-label="Weekly trend board">
+      <header class="trend-head">
+        <p class="trend-kicker">Trending this week</p>
+        <h2>Live repository metrics in board format</h2>
+      </header>
+      <div class="trend-columns">
+        <article class="trend-column trend-blue">
+          <h3>Repository pulse</h3>
+          <ul class="trend-list">
+            <li><span>Total stars</span><strong id="trendStars">-</strong></li>
+            <li><span>Total forks</span><strong id="trendForks">-</strong></li>
+            <li><span>Commits loaded</span><strong id="trendCommits">-</strong></li>
+          </ul>
+        </article>
+        <article class="trend-column trend-amber">
+          <h3>Development flow</h3>
+          <ul class="trend-list">
+            <li><span>Open pull requests</span><strong id="trendPulls">-</strong></li>
+            <li><span>Open issues</span><strong id="trendIssues">-</strong></li>
+            <li><span>In progress issues</span><strong id="trendInProgress">-</strong></li>
+          </ul>
+        </article>
+        <article class="trend-column trend-teal">
+          <h3>Resolution velocity</h3>
+          <ul class="trend-list">
+            <li><span>Closed issues</span><strong id="trendClosed">-</strong></li>
+            <li><span>Close rate</span><strong id="trendCloseRate">-</strong></li>
+            <li><span>Updated since</span><strong id="trendSince">-</strong></li>
+          </ul>
+        </article>
+      </div>
     </section>
 
     <div class="shell metrics" id="liveMetrics">

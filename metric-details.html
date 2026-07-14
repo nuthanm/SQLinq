@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="css/styles.css" />
   <script src="js/site-config.js"></script>
 </head>
-<body class="doc-page">
+<body class="doc-page stats-suite">
   <a class="skip" href="#main">Skip to content</a>
 
   <header class="site-header" id="top">
@@ -35,6 +35,39 @@
       <h1>Metric details</h1>
       <p class="lede">Detailed conversion quality, performance, and issue-coverage data from live conversion events or the latest benchmark report.</p>
       <p class="page-note">Enterprise-safe telemetry: raw SQL text and generated LINQ are not persisted. Metrics are based on status, timing, syntax target, connectivity mode, and query fingerprint metadata. Database values are telemetry tags reported by the client, not server-verified engine detection.</p>
+    </section>
+
+    <section class="shell repo-pattern-section" aria-label="Quality model cards">
+      <div class="repo-pattern-grid repo-pattern-wide" role="list">
+        <article class="repo-card tone-blue" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Correctness score</p>
+            <p class="repo-card-count">Primary quality KPI</p>
+          </div>
+          <p class="repo-card-desc">Measures semantic fidelity between source SQL and generated LINQ output.</p>
+        </article>
+        <article class="repo-card tone-green" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Exact-match rate</p>
+            <p class="repo-card-count">Deterministic output</p>
+          </div>
+          <p class="repo-card-desc">Tracks how often generated LINQ matches expected benchmark output exactly.</p>
+        </article>
+        <article class="repo-card tone-orange" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Performance</p>
+            <p class="repo-card-count">Avg / Median / p95</p>
+          </div>
+          <p class="repo-card-desc">Shows conversion latency profile so teams can estimate editor-time impact.</p>
+        </article>
+        <article class="repo-card tone-purple" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Issue coverage</p>
+            <p class="repo-card-count">Failure-to-issue mapping</p>
+          </div>
+          <p class="repo-card-desc">Ensures failed or partial conversions are tracked into the next release cycle.</p>
+        </article>
+      </div>
     </section>
 
     <div class="shell stats-grid">

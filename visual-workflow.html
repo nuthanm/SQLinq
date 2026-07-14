@@ -49,6 +49,39 @@
       </div>
     </section>
 
+    <section class="shell repo-pattern-section" aria-label="Workflow model cards">
+      <div class="repo-pattern-grid repo-pattern-compact" role="list">
+        <article class="repo-card tone-orange" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Parse</p>
+            <p class="repo-card-count">Stage 1</p>
+          </div>
+          <p class="repo-card-desc">Tokenize SQL text and construct the abstract syntax tree.</p>
+        </article>
+        <article class="repo-card tone-purple" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Bind</p>
+            <p class="repo-card-count">Stage 2</p>
+          </div>
+          <p class="repo-card-desc">Resolve table and column symbols to known entities and members.</p>
+        </article>
+        <article class="repo-card tone-blue" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Rewrite</p>
+            <p class="repo-card-count">Stage 3</p>
+          </div>
+          <p class="repo-card-desc">Apply deterministic mappings from SQL operators to LINQ operators.</p>
+        </article>
+        <article class="repo-card tone-green" role="listitem">
+          <div class="repo-card-top">
+            <p class="repo-card-title"><span class="repo-dot"></span>Emit</p>
+            <p class="repo-card-count">Stage 4</p>
+          </div>
+          <p class="repo-card-desc">Generate final C# LINQ with stable, readable formatting.</p>
+        </article>
+      </div>
+    </section>
+
     <section class="section section-muted" id="translation-flow">
       <div class="shell">
         <header class="section-head">

@@ -277,19 +277,61 @@ function renderMetrics() {
   const pullRequests = document.getElementById("statPullRequests");
   const issues = document.getElementById("statIssues");
   const commits = document.getElementById("statCommits");
+  const cardStars = document.getElementById("cardStars");
+  const cardForks = document.getElementById("cardForks");
+  const cardPullRequests = document.getElementById("cardPullRequests");
+  const cardIssues = document.getElementById("cardIssues");
+  const trendStars = document.getElementById("trendStars");
+  const trendForks = document.getElementById("trendForks");
+  const trendCommits = document.getElementById("trendCommits");
+  const trendPulls = document.getElementById("trendPulls");
+  const trendIssues = document.getElementById("trendIssues");
+  const trendInProgress = document.getElementById("trendInProgress");
+  const trendClosed = document.getElementById("trendClosed");
+  const trendCloseRate = document.getElementById("trendCloseRate");
+  const trendSince = document.getElementById("trendSince");
   if (state.repo) {
     if (stars) stars.textContent = Number(state.repo.stargazers_count).toLocaleString();
     if (forks) forks.textContent = Number(state.repo.forks_count).toLocaleString();
+    if (cardStars) cardStars.textContent = Number(state.repo.stargazers_count).toLocaleString();
+    if (cardForks) cardForks.textContent = Number(state.repo.forks_count).toLocaleString();
+    if (trendStars) trendStars.textContent = Number(state.repo.stargazers_count).toLocaleString();
+    if (trendForks) trendForks.textContent = Number(state.repo.forks_count).toLocaleString();
   }
   if (pullRequests) {
     pullRequests.textContent =
       state.pullRequests == null ? "—" : Number(state.pullRequests).toLocaleString();
   }
+  if (cardPullRequests) {
+    cardPullRequests.textContent =
+      state.pullRequests == null ? "Open PRs" : Number(state.pullRequests).toLocaleString();
+  }
   if (issues) {
     issues.textContent =
       state.issuesOpen == null ? "—" : Number(state.issuesOpen).toLocaleString();
   }
+  if (cardIssues) {
+    cardIssues.textContent =
+      state.issuesOpen == null ? "Open issues" : Number(state.issuesOpen).toLocaleString();
+  }
   if (commits) commits.textContent = state.commits.length.toLocaleString();
+  if (trendCommits) trendCommits.textContent = state.commits.length.toLocaleString();
+  if (trendPulls) {
+    trendPulls.textContent =
+      state.pullRequests == null ? "-" : Number(state.pullRequests).toLocaleString();
+  }
+  if (trendIssues) {
+    trendIssues.textContent =
+      state.issuesOpen == null ? "-" : Number(state.issuesOpen).toLocaleString();
+  }
+  if (trendInProgress) {
+    trendInProgress.textContent =
+      state.issuesInProgress == null ? "-" : Number(state.issuesInProgress).toLocaleString();
+  }
+  if (trendClosed) {
+    trendClosed.textContent =
+      state.issuesClosed == null ? "-" : Number(state.issuesClosed).toLocaleString();
+  }
 
   const open = state.issuesOpen;
   const closed = state.issuesClosed;
@@ -303,9 +345,13 @@ function renderMetrics() {
   set("bugIdentified", identified == null ? "—" : String(identified));
   if (identified && identified > 0 && closed != null) {
     set("bugFixPct", `${((closed / identified) * 100).toFixed(1)}%`);
+    if (trendCloseRate) trendCloseRate.textContent = `${((closed / identified) * 100).toFixed(1)}%`;
   } else {
     set("bugFixPct", identified === 0 ? "n/a" : "—");
+    if (trendCloseRate) trendCloseRate.textContent = identified === 0 ? "n/a" : "-";
   }
+
+  if (trendSince) trendSince.textContent = cfg.sinceDate || "-";
 
   renderIssueTrackingGraph("qaIssueTrackingGraph");
 }
