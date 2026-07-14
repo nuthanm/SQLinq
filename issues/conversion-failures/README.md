@@ -1,6 +1,6 @@
 # Conversion Failure Issue Snapshot
 
-Generated at: 2026-07-13T17:29:03.823Z
+Generated at: 2026-07-14T01:27:12.455Z
 Source report: data/quality-report.json
 Total queries: 11
 Failures exported: 4

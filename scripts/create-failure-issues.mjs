@@ -98,13 +98,16 @@ function sanitizeSqlIdentifiersInPlace(rawSql) {
 
   const tableName = (token) => {
     const key = cleanSqlIdentifier(token).toLowerCase();
-    if (!tableMap.has(key)) tableMap.set(key, `table${tableMap.size + 1}`);
+    if (!tableMap.has(key)) {
+      const index = tableMap.size + 1;
+      tableMap.set(key, index === 1 ? "[schema].[TableName]" : `[schema].[TableName${index}]`);
+    }
     return tableMap.get(key);
   };
 
   const columnName = (token) => {
     const key = cleanSqlIdentifier(token).toLowerCase();
-    if (!columnMap.has(key)) columnMap.set(key, `col${columnMap.size + 1}`);
+    if (!columnMap.has(key)) columnMap.set(key, `Col${columnMap.size + 1}`);
     return columnMap.get(key);
   };
 
@@ -138,8 +141,9 @@ function sanitizeSqlIdentifiersInPlace(rawSql) {
 
     if (SQL_KEYWORDS.has(upper)) return token;
     if (aliasSet.has(lower)) return token;
-    if (/^table\d+$/i.test(token) || /^col\d+$/i.test(token)) return token;
+    if (/^TableName\d*$/i.test(token) || /^Col\d+$/i.test(token)) return token;
     if (/^__SQL_STR_\d+__$/i.test(token)) return token;
+    if (prev === "[" && next === "]") return token;
     if (prev === "@" || prev === "#") return token;
     if (next === "(") return token;
     return columnName(token);
@@ -153,6 +157,123 @@ function sanitizeFailureData(row) {
     ...row,
     sqlInput: sanitizeSqlIdentifiersInPlace(pickRawSqlText(row)),
   };
+}
+
+function toCollectionNameFromSqlTable(tableExpr) {
+  const lastSegment = String(tableExpr || "")
+    .split(".")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .pop() || "TableName";
+  const clean = cleanSqlIdentifier(lastSegment).replace(/[^A-Za-z0-9_]/g, "") || "TableName";
+  return clean.charAt(0).toLowerCase() + clean.slice(1);
+}
+
+function qualifyWhereForRow(whereText) {
+  return String(whereText || "")
+    .replace(/\bAND\b/gi, "&&")
+    .replace(/\bOR\b/gi, "||")
+    .replace(/<>/g, "!=")
+    .replace(/\s=\s/g, " == ")
+    .replace(/\b([A-Za-z_][\w]*)\b/g, (token, ident, offset, source) => {
+      const upper = ident.toUpperCase();
+      const prev = source[offset - 1] || "";
+      const next = source[offset + token.length] || "";
+      if (prev === "." || prev === "@" || prev === "#") return token;
+      if (next === "(") return token;
+      if (["AND", "OR", "NOT", "NULL", "IN", "IS", "LIKE", "BETWEEN", "TRUE", "FALSE"].includes(upper)) return token;
+      if (/^\d+$/.test(token)) return token;
+      if (/^Col\d+$/i.test(token)) return `row.${token}`;
+      return token;
+    })
+    .trim();
+}
+
+function splitTopLevelCsv(text) {
+  const parts = [];
+  let current = "";
+  let depth = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === "(") depth += 1;
+    if (ch === ")" && depth > 0) depth -= 1;
+    if (ch === "," && depth === 0) {
+      if (current.trim()) parts.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function buildExpectedLinqFromSanitizedSql(sqlInput, target) {
+  const sql = String(sqlInput || "").trim().replace(/;\s*$/, "");
+  const match = sql.match(/^SELECT\s+([\s\S]+?)\s+FROM\s+([\s\S]+)$/i);
+  if (!match) return "// Unable to infer expected LINQ from this SQL shape.";
+
+  let selectPart = match[1].trim();
+  const fromRest = match[2].trim();
+
+  let topN = null;
+  const topMatch = selectPart.match(/^TOP\s*\(\s*(\d+)\s*\)\s+([\s\S]+)$/i);
+  if (topMatch) {
+    topN = Number(topMatch[1]);
+    selectPart = topMatch[2].trim();
+  }
+
+  const fromTokens = fromRest.split(/\s+/);
+  const tableExpr = fromTokens.shift() || "[schema].[TableName]";
+  const tail = fromTokens.join(" ");
+  const whereMatch = tail.match(/\bWHERE\b([\s\S]*?)(?=\bORDER\s+BY\b|$)/i);
+  const orderMatch = tail.match(/\bORDER\s+BY\b([\s\S]*)$/i);
+
+  const whereText = whereMatch ? qualifyWhereForRow(whereMatch[1].trim()) : "";
+  const orderItems = orderMatch
+    ? splitTopLevelCsv(orderMatch[1]).map((item) => {
+      const m = item.trim().match(/^(.*?)(?:\s+(ASC|DESC))?$/i);
+      const expr = (m && m[1] ? m[1] : item).trim();
+      const dir = ((m && m[2]) || "ASC").toUpperCase();
+      const rowExpr = /^Col\d+$/i.test(expr) ? `row.${expr}` : expr;
+      return { rowExpr, desc: dir === "DESC" };
+    })
+    : [];
+
+  const columns = splitTopLevelCsv(selectPart);
+  const projection = columns.length === 1 && columns[0] === "*"
+    ? "row"
+    : `new { ${columns.map((col) => {
+      const c = col.trim();
+      return /^Col\d+$/i.test(c) ? `row.${c}` : c;
+    }).join(", ")} }`;
+
+  const collection = toCollectionNameFromSqlTable(tableExpr);
+
+  if (String(target || "").toLowerCase() === "query") {
+    const lines = [`from row in ${collection}`];
+    if (whereText) lines.push(`where ${whereText}`);
+    if (orderItems.length) {
+      lines.push(`orderby ${orderItems.map((o) => `${o.rowExpr}${o.desc ? " descending" : ""}`).join(", ")}`);
+    }
+    lines.push(`select ${projection}`);
+    const queryExpr = lines.join("\n");
+    if (topN) {
+      return `(${queryExpr})\n  .Take(${topN})\n  .ToList();`;
+    }
+    return `${queryExpr}\n  .ToList();`;
+  }
+
+  const methodLines = [collection];
+  if (whereText) methodLines.push(`  .Where(row => ${whereText})`);
+  orderItems.forEach((o, i) => {
+    const method = i === 0 ? (o.desc ? "OrderByDescending" : "OrderBy") : (o.desc ? "ThenByDescending" : "ThenBy");
+    methodLines.push(`  .${method}(row => ${o.rowExpr})`);
+  });
+  if (topN) methodLines.push(`  .Take(${topN})`);
+  if (projection !== "row") methodLines.push(`  .Select(row => ${projection})`);
+  methodLines.push("  .ToList();");
+  return methodLines.join("\n");
 }
 
 function issueMarkdown(row) {
@@ -171,6 +292,7 @@ function issueMarkdown(row) {
   const queryType = row.queryType || "unknown";
   const elements = Array.isArray(row.queryElements) ? row.queryElements.join(", ") : String(row.queryElements || "unknown");
   const sqlInput = sanitized.sqlInput || "-- SQL text unavailable in quality report.\n-- Add failing SQL and anonymize only table/column identifiers.";
+  const expectedLinqOutput = buildExpectedLinqFromSanitizedSql(sqlInput, target);
 
   return `Use this template for parser/converter failures. Please include sanitized SQL only.
 
@@ -211,12 +333,7 @@ Conversion failed during ${failureStage.toLowerCase()} stage
 
 ### Expected LINQ Output
 \`\`\`csharp
-// For ${queryType} with ${target} target
-table1
-  .Where(row => row.col3 == 1)
-  .OrderByDescending(row => row.col4)
-  .Select(row => new { row.col1, row.col2 })
-  .ToList();
+${expectedLinqOutput}
 \`\`\`
 
 ### Reproduction Steps

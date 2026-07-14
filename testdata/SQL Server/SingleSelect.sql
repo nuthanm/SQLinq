@@ -64,9 +64,10 @@ FROM dbo.Customers
 WHERE IsActive = 1 AND CustomerId > 100;
 
 -- 14. Multi-column order with directions
-SELECT CustomerId, Name
-FROM dbo.Customers
-ORDER BY Name ASC, CustomerId DESC;
+customers
+  .OrderBy(c => c.Name)
+  .ThenByDescending(c => c.CustomerId)
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 15. TOP + filter + order
 SELECT TOP (25) CustomerId, Name
