@@ -1138,6 +1138,7 @@ app.post("/api/db/detect", async (req, res) => {
       message: `Connection failed: ${err.message}`,
     });
   }
+});
 
 app.post("/api/release-compare/save", async (req, res) => {
   try {
