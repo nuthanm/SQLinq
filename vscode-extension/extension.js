@@ -18,6 +18,7 @@ function getTelemetryConfig() {
   const cfg = vscode.workspace.getConfiguration('sqlinq');
   const configured = String(cfg.get('telemetryEndpoint') || '').trim();
   const databaseType = String(cfg.get('databaseType') || 'connected').trim().toLowerCase();
+  const dbConnectionString = String(cfg.get('dbConnectionString') || '').trim();
   const envBase = String(process.env.SQLINQ_API_BASE_URL || process.env.SITE_URL || '').trim();
   const runtimeEndpoint = String(runtimeConfig.telemetryEndpoint || '').trim();
   const endpoint = configured || runtimeEndpoint || (envBase ? `${envBase.replace(/\/+$/, '')}/api/events/conversion` : '');
@@ -25,7 +26,33 @@ function getTelemetryConfig() {
     endpoint,
     source: String(cfg.get('telemetrySource') || 'vscode-extension').trim(),
     databaseType,
+    dbConnectionString,
   };
+}
+
+function getDbPresets() {
+  // Load database connection presets from environment variables
+  // Format: DATABASE_PRESET_<NAME>_<DBTYPE> or DATABASE_<NAME>
+  const presets = {};
+  
+  // PostgreSQL
+  const pgUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_POSTGRESQL;
+  if (pgUrl) presets.postgresql = pgUrl;
+  
+  // SQL Server
+  const mssqlUrl = process.env.DATABASE_MSSQL || process.env.SQL_SERVER_URL || process.env.DATABASE_SQLSERVER;
+  if (mssqlUrl) presets.mssql = mssqlUrl;
+  
+  // MySQL
+  const mysqlUrl = process.env.DATABASE_MYSQL || process.env.MYSQL_URL;
+  if (mysqlUrl) presets.mysql = mysqlUrl;
+  
+  // Oracle
+  const oracleUrl = process.env.DATABASE_ORACLE || process.env.ORACLE_URL;
+  if (oracleUrl) presets.oracle = oracleUrl;
+  
+  return presets;
+}
 }
 
 function fnv1a32(value) {
@@ -537,6 +564,10 @@ function getWebviewContent(webview, state) {
     '.rec-list{margin:6px 0 0;padding-left:18px;font-size:12px;line-height:1.6}',
     '.rec-list li{margin-bottom:2px}',
     '.shortcut-hint{font-size:11px;opacity:.6;margin-left:6px}',
+    '.conn-row{margin-top:12px}',
+    '.conn-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}',
+    '.conn-note{font-size:11px;opacity:.7}',
+    'code{background:#2a2a2a;color:#a8e6a8;padding:2px 6px;border-radius:3px;font-family:"Courier New",monospace;font-size:11px;word-break:break-all}',
     '@media (max-width: 900px){.grid{grid-template-columns:1fr}}',
   ].join('');
 
@@ -545,6 +576,7 @@ function getWebviewContent(webview, state) {
   const initialStatus = escapeHtml(state.result.status || 'Ready to convert a basic SELECT query.');
   const connectivity = getConnectivityDetails(state.connectivityMode || 'without');
   const initialMode = state.connectivityMode || 'without';
+  const initialConnectionString = escapeHtml(state.dbConnectionString || '');
   const connectivityRows = connectivity.outputs.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
 
   return `<!doctype html>
@@ -581,6 +613,28 @@ function getWebviewContent(webview, state) {
           <div class="muted">${escapeHtml(getTargetLabel(state.target))}</div>
         </div>
       </div>
+      <div class="row" style="margin-top:12px;gap:8px;align-items:flex-end">
+        <div style="min-width:200px;flex:1">
+          <label for="dbPreset">Database Preset</label>
+          <select id="dbPreset">
+            <option value="">-- None (manual entry) --</option>
+            <option value="postgresql">PostgreSQL</option>
+            <option value="mssql">SQL Server</option>
+            <option value="mysql">MySQL</option>
+            <option value="oracle">Oracle</option>
+          </select>
+        </div>
+        <div style="min-width:280px;flex:2">
+          <label for="connectionString">Connection String</label>
+          <input id="connectionString" type="text" placeholder="postgres://... or server=..." value="${initialConnectionString}" style="width:100%;padding:6px;border:1px solid var(--vscode-input-border, #444);border-radius:4px;background:var(--vscode-input-background);color:var(--vscode-foreground);font-size:12px" />
+        </div>
+        <button class="secondary" id="testConnection" title="Test connection">Test</button>
+        <button class="secondary" id="saveConnection" title="Save to VS Code settings">Save</button>
+      </div>
+      <div id="connectionStatus" style="margin-top:8px;padding:8px;border-radius:4px;font-size:13px;display:none;background:var(--vscode-editorWidget-border, transparent)">
+        <span id="statusDot" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:#ccc"></span>
+        <span id="statusText">Not tested</span>
+      </div>
       <div class="grid" style="margin-top:12px">
         <div class="card">
           <label for="sql">SQL input <span class="shortcut-hint">Ctrl+Shift+L to convert · Ctrl+Shift+Q quick convert · Ctrl+Shift+R run &amp; explain</span></label>
@@ -591,6 +645,7 @@ function getWebviewContent(webview, state) {
           <pre id="output" class="linq-pre">${initialOutput}</pre>
         </div>
       </div>
+
       <div class="toolbar">
         <button class="primary" id="convert" title="Ctrl+Shift+L">Convert</button>
         <button class="secondary" id="insert" title="Insert LINQ into active editor">Insert into editor</button>
@@ -621,6 +676,7 @@ function getWebviewContent(webview, state) {
       const status = document.getElementById('status');
       const telemetryStatus = document.getElementById('telemetryStatus');
       const modeOutputs = document.getElementById('modeOutputs');
+      const connectionString = document.getElementById('connectionString');
       const dbSection = document.getElementById('dbSection');
       const dbResultWrap = document.getElementById('dbResultWrap');
       const dbExplain = document.getElementById('dbExplain');
@@ -651,8 +707,147 @@ function getWebviewContent(webview, state) {
         } else {
           dbResultWrap.textContent = data.message || 'No rows returned.';
         }
-        dbExplain.textContent = data.explainOutput || '(no plan)';
-        dbRecs.innerHTML = (data.recommendations || []).map((r) => '<li>' + r + '</li>').join('');
+        
+        // Render structured EXPLAIN ANALYZE output
+        const explainText = data.explainOutput || '';
+        if (explainText) {
+          const structuredPlan = parseExplainOutput(explainText);
+          dbExplain.innerHTML = '<strong style="font-size:13px;display:block;margin-bottom:8px">Execution Plan Analysis:</strong>' + structuredPlan.html;
+        } else {
+          dbExplain.textContent = '(no plan)';
+        }
+        
+        // Parse and display detailed recommendations
+        const detailedRecs = parseExplainRecommendations(data.explainOutput || '', sql.value);
+        dbRecs.innerHTML = detailedRecs.map((r) => '<li style="margin-bottom:6px">' + r + '</li>').join('');
+      }
+
+      function parseExplainOutput(explainText) {
+        const lines = explainText.split('\\n').filter(l => l.trim());
+        const html = [];
+        let nodeInfo = {};
+
+        for (const line of lines) {
+          // Main node line: "Seq Scan on table (cost=X..Y rows=Z)"
+          const nodeMatch = line.match(/^\\s*(\\w+\\s+\\w+)\\s+on\\s+(\\w+)\\s+\\(cost=([\\d.]+)\\.\\.(\\d+)\\s+rows=([\\d.]+)\\s+width=(\\d+)\\)\\s*\\(actual\\s+time=([\\d.]+)\\.\\.(\\d.+)\\s+rows=([\\d.]+)\\s+loops=(\\d+)\\)/);
+          
+          if (nodeMatch) {
+            const [, scanType, table, costStart, costEnd, rows, width, timeStart, timeEnd, actualRows, loops] = nodeMatch;
+            nodeInfo = {
+              scanType: scanType.trim(),
+              table: table,
+              estimatedCost: parseFloat(costEnd),
+              estimatedRows: parseFloat(rows),
+              actualRows: parseFloat(actualRows),
+              actualTime: parseFloat(timeEnd),
+              hasIndex: /Index/.test(scanType)
+            };
+            
+            html.push('<div style="background:var(--vscode-sideBar-background);padding:6px;border-radius:4px;margin-bottom:6px;font-family:monospace;font-size:11px">');
+            html.push('<strong>' + scanType + '</strong> on <strong>' + table + '</strong><br/>');
+            html.push('Est. cost: ' + costStart + '..' + costEnd + ' | Rows: ' + rows + '<br/>');
+            html.push('Actual: ' + timeStart + '..' + timeEnd + 'ms | Rows: ' + actualRows + ' | Loops: ' + loops);
+            html.push('</div>');
+          }
+          
+          // Buffers line
+          if (line.match(/Buffers:/)) {
+            html.push('<div style="font-size:11px;opacity:0.8;margin:4px 0">' + line.trim() + '</div>');
+          }
+          
+          // Timing lines
+          if (line.match(/Planning Time:|Execution Time:/)) {
+            html.push('<div style="font-size:11px;opacity:0.8;margin:4px 0;font-weight:500">' + line.trim() + '</div>');
+          }
+        }
+        
+        return { html: html.join(''), nodeInfo: nodeInfo };
+      }
+
+      function parseExplainRecommendations(explainText, sqlText) {
+        const recs = [];
+        const text = String(explainText || '');
+        const sql = String(sqlText || '').toLowerCase();
+
+        // Check for sequential scans
+        if (/Seq Scan/i.test(text)) {
+          recs.push('<strong>⚠ Sequential Scan Detected:</strong> Consider adding an index on the WHERE clause columns for faster lookups.');
+          
+          // Analyze WHERE clause to suggest columns
+          const whereMatch = sql.match(/where\\s+([^;]*?)(?:order|group|limit|$)/i);
+          if (whereMatch) {
+            const whereClause = whereMatch[1].trim();
+            const columns = whereClause.match(/\\b[a-z_][a-z0-9_]*\\s*[=><]/gi) || [];
+            const columnNames = [...new Set(columns.map(c => c.replace(/\\s*[=><].*/, '').trim()))];
+            if (columnNames.length) {
+              const table = (text.match(/Seq Scan on (\\w+)/) || [])[1] || 'table_name';
+              recs.push('💡 <strong>Create Index:</strong> <code style="background:#2a2a2a;padding:2px 4px;border-radius:2px">CREATE INDEX idx_' + table + '_' + columnNames[0].toLowerCase() + ' ON ' + table + '(' + columnNames.join(', ') + ');</code>');
+            }
+          }
+        }
+
+        // Check for high costs
+        if (/cost=.*\\.\\.(\\d{3,})/.test(text)) {
+          const costMatch = text.match(/cost=.*\\.(\\d{4,})/);
+          if (costMatch && parseInt(costMatch[1]) > 1000) {
+            recs.push('<strong>⚠ High Estimated Cost:</strong> Query plan shows high cost. Review WHERE predicates and ensure indexes exist on filtered columns.');
+          }
+        }
+
+        // Check for sort operations
+        if (/Sort.*Method/i.test(text)) {
+          recs.push('<strong>📊 Sort Operation:</strong> Query includes sorting. Ensure ORDER BY columns are indexed for better performance.');
+          const orderMatch = sql.match(/order\\s+by\\s+([^;]*?)(?:limit|$)/i);
+          if (orderMatch) {
+            const orderCols = orderMatch[1].split(',').map(c => c.trim().split(/\\s+/)[0]);
+            const table = (text.match(/(?:Seq|Index)\\s+\\w+\\s+on\\s+(\\w+)/) || [])[1] || 'table_name';
+            recs.push('💡 <strong>Index for ORDER BY:</strong> <code style=\"background:#2a2a2a;padding:2px 4px;border-radius:2px\">CREATE INDEX idx_' + table + '_' + orderCols[0].toLowerCase() + ' ON ' + table + '(' + orderCols.join(', ') + ');</code>');
+          }
+        }
+
+        // Check for SELECT * optimization
+        if (/SELECT\\s+\\*/.test(sql)) {
+          recs.push('<strong>✓ Column Selection Tip:</strong> Consider using specific columns instead of SELECT * to reduce I/O and memory usage.');
+          // Try to extract actual columns from results (would need row data)
+          recs.push('💡 <strong>Example:</strong> <code style=\"background:#2a2a2a;padding:2px 4px;border-radius:2px\">SELECT col1, col2, col3 FROM table WHERE ...</code> instead of SELECT *');
+        }
+
+        // Check for table size based on rows
+        if (/rows=(\\d+)/.test(text)) {
+          const rowMatch = text.match(/actual.*rows=(\\d+)/);
+          if (rowMatch && parseInt(rowMatch[1]) > 10000) {
+            recs.push('<strong>📈 Large Result Set:</strong> Query returns many rows. Consider adding pagination or more specific filters.');
+          }
+        }
+
+        // Buffers analysis
+        if (/Buffers:.*shared\\s+hit=(\\d+)/.test(text)) {
+          const hitMatch = text.match(/shared\\s+hit=(\\d+)/);
+          if (hitMatch && parseInt(hitMatch[1]) > 0) {
+            recs.push('<strong>✓ Cache Efficiency:</strong> Good - most data read from shared buffer cache.');
+          }
+        }
+
+        if (!recs.length) {
+          recs.push('✓ <strong>No Performance Issues Detected:</strong> Query plan looks optimal. Monitor performance over time with larger datasets.');
+        }
+
+        return recs;
+      }
+
+      function updateConnectionStatus(connected, dbType, dbName, message) {
+        const statusDiv = document.getElementById('connectionStatus');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        if (connected) {
+          statusDot.style.background = '#4CAF50';
+          statusText.textContent = 'Connected to ' + (dbType || 'database') + ': ' + (dbName || 'unknown');
+        } else {
+          statusDot.style.background = '#f44336';
+          statusText.textContent = message || 'Not connected';
+        }
+        statusDiv.style.display = '';
       }
 
       document.getElementById('convert').addEventListener('click', () => {
@@ -661,7 +856,22 @@ function getWebviewContent(webview, state) {
       });
 
       document.getElementById('runQuery').addEventListener('click', () => {
-        vscode.postMessage({ type: 'runQuery', sql: sql.value });
+        vscode.postMessage({ type: 'runQuery', sql: sql.value, connectionString: connectionString.value });
+      });
+
+      document.getElementById('saveConnection').addEventListener('click', () => {
+        vscode.postMessage({ type: 'saveConnectionString', connectionString: connectionString.value });
+      });
+
+      document.getElementById('testConnection').addEventListener('click', () => {
+        vscode.postMessage({ type: 'testConnection', connectionString: connectionString.value });
+      });
+
+      document.getElementById('dbPreset').addEventListener('change', (e) => {
+        const preset = e.target.value;
+        if (preset) {
+          vscode.postMessage({ type: 'loadDbPreset', preset: preset });
+        }
       });
 
       document.getElementById('insert').addEventListener('click', () => {
@@ -677,18 +887,6 @@ function getWebviewContent(webview, state) {
         }
       });
 
-      sql.addEventListener('input', () => {
-        vscode.postMessage({ type: 'preview', sql: sql.value, target: target.value, connectivity: connectivity.value });
-      });
-
-      target.addEventListener('change', () => {
-        vscode.postMessage({ type: 'preview', sql: sql.value, target: target.value, connectivity: connectivity.value });
-      });
-
-      connectivity.addEventListener('change', () => {
-        vscode.postMessage({ type: 'preview', sql: sql.value, target: target.value, connectivity: connectivity.value });
-      });
-
       window.addEventListener('message', (event) => {
         const message = event.data;
         if (message.type === 'result') {
@@ -696,6 +894,9 @@ function getWebviewContent(webview, state) {
         }
         if (message.type === 'telemetry') {
           telemetryStatus.textContent = message.status;
+        }
+        if (message.type === 'connectionSaved') {
+          status.textContent = message.status || 'Connection string saved.';
         }
         if (message.type === 'dbResult') {
           renderDbResults(message.data);
@@ -710,11 +911,16 @@ function getWebviewContent(webview, state) {
         }
         if (message.type === 'autoRunQuery') {
           sql.value = message.sql || sql.value;
-          vscode.postMessage({ type: 'runQuery', sql: sql.value });
+          vscode.postMessage({ type: 'runQuery', sql: sql.value, connectionString: connectionString.value });
+        }
+        if (message.type === 'connectionStatus') {
+          updateConnectionStatus(message.connected, message.databaseType, message.databaseName, message.message);
+        }
+        if (message.type === 'dbPresetLoaded') {
+          connectionString.value = message.connectionString || '';
+          status.textContent = `Loaded ${message.preset} connection string from environment.`;
         }
       });
-
-      vscode.postMessage({ type: 'preview', sql: sql.value, target: target.value, connectivity: connectivity.value });
     </script>
   </body>
   </html>`;
@@ -744,25 +950,22 @@ function activate(context) {
       sqlText: seedSql,
       target: seedTarget,
       connectivityMode: seedConnectivity,
+      dbConnectionString: getTelemetryConfig().dbConnectionString,
       result: initialResult,
     });
 
     panel.webview.onDidReceiveMessage(async (message) => {
       if (!message || typeof message !== 'object') return;
 
-      if (message.type === 'preview' || message.type === 'convert') {
+      if (message.type === 'convert') {
         const connectivityMode = message.connectivity || 'without';
         const connectivity = getConnectivityDetails(connectivityMode);
         const start = Date.now();
         const result = buildInitialConversion(message.sql || SAMPLE_SQL, message.target || 'method');
         const safeSummary = buildSafeQuerySummary(message.sql || SAMPLE_SQL);
         const elapsedMs = Date.now() - start;
-        const runMetrics = message.type === 'convert'
-          ? recordQueryRun(safeSummary.queryFingerprint, elapsedMs)
-          : { queryRunCount: 0, queryAverageMs: 0 };
-        const metricsText = message.type === 'convert'
-          ? ` Runs: ${runMetrics.queryRunCount}, average: ${runMetrics.queryAverageMs} ms.`
-          : '';
+        const runMetrics = recordQueryRun(safeSummary.queryFingerprint, elapsedMs);
+        const metricsText = ` Runs: ${runMetrics.queryRunCount}, average: ${runMetrics.queryAverageMs} ms.`;
         panel.webview.postMessage({
           type: 'result',
           status: result.ok
@@ -771,31 +974,29 @@ function activate(context) {
           output: result.ok ? result.output : '',
           outputs: connectivity.outputs,
         });
-        if (message.type === 'convert') {
-          if (!result.ok) {
-            vscode.window.showErrorMessage(result.error);
-          } else {
-            vscode.window.showInformationMessage(`${result.status} Mode: ${connectivity.label}.`);
-          }
-          const inferred = inferStatuses(result);
-          const sync = await sendConversionEvent({
-            connectivityMode,
-            target: message.target || 'method',
-            ...safeSummary,
-            ...runMetrics,
-            parseStatus: inferred.parseStatus,
-            convertStatus: inferred.convertStatus,
-            correctness: inferred.correctness,
-            exactMatch: inferred.exactMatch,
-            timeMs: elapsedMs,
-            issue: null,
-            message: result.ok ? result.status : result.error,
-          });
-          panel.webview.postMessage({
-            type: 'telemetry',
-            status: sync.ok ? 'Telemetry: synced to dashboard.' : `Telemetry: failed (${sync.reason})`,
-          });
+        if (!result.ok) {
+          vscode.window.showErrorMessage(result.error);
+        } else {
+          vscode.window.showInformationMessage(`${result.status} Mode: ${connectivity.label}.`);
         }
+        const inferred = inferStatuses(result);
+        const sync = await sendConversionEvent({
+          connectivityMode,
+          target: message.target || 'method',
+          ...safeSummary,
+          ...runMetrics,
+          parseStatus: inferred.parseStatus,
+          convertStatus: inferred.convertStatus,
+          correctness: inferred.correctness,
+          exactMatch: inferred.exactMatch,
+          timeMs: elapsedMs,
+          issue: null,
+          message: result.ok ? result.status : result.error,
+        });
+        panel.webview.postMessage({
+          type: 'telemetry',
+          status: sync.ok ? 'Telemetry: synced to dashboard.' : `Telemetry: failed (${sync.reason})`,
+        });
         return;
       }
 
@@ -812,10 +1013,96 @@ function activate(context) {
         await applyConversionToEditor({ output }, editor);
       }
 
+      if (message.type === 'saveConnectionString') {
+        const cfg = vscode.workspace.getConfiguration('sqlinq');
+        await cfg.update('dbConnectionString', String(message.connectionString || '').trim(), vscode.ConfigurationTarget.Workspace);
+        panel.webview.postMessage({ type: 'connectionSaved', status: 'Connection string saved to workspace settings.' });
+        return;
+      }
+
+      if (message.type === 'loadDbPreset') {
+        const presets = getDbPresets();
+        const preset = String(message.preset || '').toLowerCase();
+        const connStr = presets[preset] || '';
+        panel.webview.postMessage({
+          type: 'dbPresetLoaded',
+          preset: preset,
+          connectionString: connStr,
+        });
+        return;
+      }
+
+      if (message.type === 'testConnection') {
+        const telemetry = getTelemetryConfig();
+        const dbConnStr = String(message.connectionString || telemetry.dbConnectionString || '').trim();
+
+        let detectEndpoint = '';
+        if (telemetry.endpoint) {
+          try {
+            const url = new URL(telemetry.endpoint);
+            detectEndpoint = `${url.protocol}//${url.host}/api/db/detect`;
+          } catch { /* ignore */ }
+        }
+
+        if (!detectEndpoint) {
+          panel.webview.postMessage({ type: 'connectionStatus', connected: false, message: 'Configure sqlinq.telemetryEndpoint to test connections.' });
+          return;
+        }
+
+        try {
+          const body = JSON.stringify({ connectionString: dbConnStr });
+          let response;
+          if (typeof fetch === 'function') {
+            const res = await fetch(detectEndpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body,
+            });
+            response = await res.json();
+          } else {
+            response = await new Promise((resolve, reject) => {
+              const url = new URL(detectEndpoint);
+              const req = https.request({ hostname: url.hostname, port: url.port || 443, path: url.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({ ok: false, message: data }); } });
+              });
+              req.on('error', reject);
+              req.write(body);
+              req.end();
+            });
+          }
+
+          if (response && response.ok) {
+            panel.webview.postMessage({
+              type: 'connectionStatus',
+              connected: true,
+              databaseType: response.databaseType,
+              databaseName: response.databaseName,
+              message: response.message,
+            });
+          } else {
+            panel.webview.postMessage({
+              type: 'connectionStatus',
+              connected: false,
+              databaseType: response?.databaseType,
+              databaseName: null,
+              message: response?.message || 'Connection test failed.',
+            });
+          }
+        } catch (err) {
+          panel.webview.postMessage({
+            type: 'connectionStatus',
+            connected: false,
+            message: `Error: ${err.message}`,
+          });
+        }
+        return;
+      }
+
       if (message.type === 'runQuery') {
         const telemetry = getTelemetryConfig();
-        const cfg = vscode.workspace.getConfiguration('sqlinq');
-        const dbConnStr = String(cfg.get('dbConnectionString') || '').trim();
+        const dbConnStr = String(message.connectionString || telemetry.dbConnectionString || '').trim();
 
         // Derive the DB execute endpoint from the telemetry endpoint base
         let dbEndpoint = '';
@@ -826,8 +1113,8 @@ function activate(context) {
           } catch { /* ignore */ }
         }
 
-        if (!dbEndpoint && !dbConnStr) {
-          panel.webview.postMessage({ type: 'dbError', message: 'Configure sqlinq.telemetryEndpoint (server) or sqlinq.dbConnectionString to enable live query execution.' });
+        if (!dbEndpoint) {
+          panel.webview.postMessage({ type: 'dbError', message: 'Configure sqlinq.telemetryEndpoint so the extension can reach the SQLinq server endpoint.' });
           return;
         }
 

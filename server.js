@@ -63,6 +63,55 @@ function buildPool() {
   });
 }
 
+function buildPoolFromConnectionString(connectionString) {
+  const value = String(connectionString || "").trim();
+  if (!value) return null;
+  return new Pool({
+    connectionString: value,
+    ssl: { rejectUnauthorized: false },
+  });
+}
+
+function detectDatabaseTypeFromConnectionString(connectionString) {
+  const connStr = String(connectionString || "").toLowerCase();
+  
+  if (/^server=|^data source=|^sqlserver|sql\.azure|\.database\.windows\.net/.test(connStr)) {
+    return 'mssql';
+  }
+  if (/^postgres:\/\/|host=.*port=5432|postgresql/.test(connStr)) {
+    return 'postgresql';
+  }
+  if (/^mysql:\/\/|host=.*port=3306/.test(connStr)) {
+    return 'mysql';
+  }
+  if (/^oracle:\/\/|^(oci|oracledb):/.test(connStr)) {
+    return 'oracle';
+  }
+  
+  // Default to PostgreSQL if using pg driver
+  return 'postgresql';
+}
+
+function deriveDbRecommendationsSqlServer(statsText) {
+  const recs = [];
+  const text = String(statsText || '');
+  if (/Table.*Scan/i.test(text)) recs.push('Table Scan detected — consider adding a clustered or non-clustered index on the filtered columns.');
+  if (/CPU time.*= (\d+)ms/i.test(text)) {
+    const match = text.match(/CPU time.*= (\d+)ms/i);
+    const cpuTime = parseInt(match[1], 10);
+    if (cpuTime > 1000) recs.push('High CPU time detected — review query plan and consider index optimization.');
+  }
+  if (/elapsed time.*= (\d+)ms/i.test(text)) {
+    const match = text.match(/elapsed time.*= (\d+)ms/i);
+    const elapsedTime = parseInt(match[1], 10);
+    if (elapsedTime > 5000) recs.push('Long execution time — optimize indexes and ensure statistics are current.');
+  }
+  if (/Sort/i.test(text)) recs.push('Sort operation detected — verify ORDER BY columns are indexed.');
+  if (/Hash Match|Merge Join|Nested Loop/i.test(text)) recs.push('Complex join detected — ensure join columns have indexes and statistics.');
+  if (!recs.length) recs.push('No major performance concerns detected.');
+  return recs;
+}
+
 const pool = buildPool();
 
 function dashSummary() {
@@ -84,6 +133,42 @@ function dashSummary() {
     source: "unavailable",
     message: "No benchmark report is available yet. Run benchmark pipeline or import report.",
   };
+}
+
+function validateSqlSyntaxServer(sql) {
+  const normalized = String(sql || '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--.*$/gm, ' ')
+    .trim()
+    .replace(/;+\s*$/, '');
+  
+  if (!normalized) return { valid: false, reason: 'SQL is empty' };
+  
+  // Check for trailing commas in SELECT
+  const selectMatch = normalized.match(/^select\s+(.*?)\s+from/i);
+  if (selectMatch) {
+    const selectList = selectMatch[1].trim();
+    if (/,\s*$/.test(selectList) || /^,/.test(selectList)) {
+      return { valid: false, reason: 'Syntax error: invalid comma in SELECT clause' };
+    }
+  }
+  
+  // Check for trailing commas or incomplete clauses
+  if (/,\s*(where|from|group|having|order|;|$)/i.test(normalized) || /(and\s*$|or\s*$|,\s*$)/i.test(normalized)) {
+    return { valid: false, reason: 'Syntax error: trailing comma or incomplete clause' };
+  }
+  
+  // Check for mismatched parentheses
+  let parenDepth = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    const ch = normalized[i];
+    if (ch === '(') parenDepth += 1;
+    if (ch === ')') parenDepth -= 1;
+    if (parenDepth < 0) return { valid: false, reason: 'Syntax error: mismatched parentheses' };
+  }
+  if (parenDepth !== 0) return { valid: false, reason: 'Syntax error: unclosed parentheses' };
+  
+  return { valid: true };
 }
 
 async function loadLatestQualityFromDb() {
@@ -347,6 +432,20 @@ app.get("/api/dashboard/conversion-events", async (_req, res) => {
 
 app.post("/api/events/conversion", async (req, res) => {
   const payload = req.body || {};
+  
+  // Validate SQL syntax before storing
+  const queryText = payload.queryText || payload.sql || '';
+  if (queryText) {
+    const sqlCheck = validateSqlSyntaxServer(queryText);
+    if (!sqlCheck.valid) {
+      return res.status(400).json({
+        accepted: false,
+        stored: false,
+        message: `SQL validation failed: ${sqlCheck.reason}. Event not persisted.`,
+      });
+    }
+  }
+  
   const connectivityMode = String(payload.connectivityMode || "without").toLowerCase() === "with"
     ? "with"
     : "without";
@@ -880,13 +979,15 @@ function deriveDbRecommendations(explainText) {
 }
 
 app.post("/api/db/execute", async (req, res) => {
-  if (!pool) {
-    return res.status(503).json({ ok: false, message: "Database not configured on the server. Set DATABASE_URL to enable live query execution." });
-  }
-
-  const { sql, explain = false } = req.body || {};
+  const { sql, explain = false, connectionString } = req.body || {};
   if (!sql || typeof sql !== "string" || !sql.trim()) {
     return res.status(400).json({ ok: false, message: "sql is required." });
+  }
+
+  const requestPool = buildPoolFromConnectionString(connectionString);
+  const activePool = requestPool || pool;
+  if (!activePool) {
+    return res.status(503).json({ ok: false, message: "Database not configured. Provide a connection string in the extension UI or set DATABASE_URL on the server." });
   }
 
   const stripped = sql.trim().replace(/\/\*[\s\S]*?\*\//g, "").replace(/--.*$/gm, "").trim();
@@ -897,7 +998,7 @@ app.post("/api/db/execute", async (req, res) => {
   try {
     const start = Date.now();
     const safeQuery = /LIMIT\s+\d+/i.test(stripped) ? sql : `${sql.replace(/;\s*$/, "")} LIMIT 100`;
-    const result = await pool.query(safeQuery);
+    const result = await activePool.query(safeQuery);
     const elapsedMs = Date.now() - start;
 
     let explainOutput = null;
@@ -906,7 +1007,7 @@ app.post("/api/db/execute", async (req, res) => {
     if (explain) {
       try {
         const explainSql = sql.trim().replace(/;\s*$/, "");
-        const planResult = await pool.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) ${explainSql}`);
+        const planResult = await activePool.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) ${explainSql}`);
         explainOutput = planResult.rows.map((r) => Object.values(r)[0]).join("\n");
         recommendations = deriveDbRecommendations(explainOutput);
       } catch (explainErr) {
@@ -926,8 +1027,84 @@ app.post("/api/db/execute", async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ ok: false, message: err.message });
+  } finally {
+    if (requestPool) {
+      await requestPool.end().catch(() => {});
+    }
   }
 });
+
+app.post("/api/db/detect", async (req, res) => {
+  const { connectionString } = req.body || {};
+  const connStr = String(connectionString || "").trim();
+
+  if (!connStr) {
+    // Use server default pool
+    if (!pool) {
+      return res.json({
+        ok: false,
+        connected: false,
+        databaseType: null,
+        databaseName: null,
+        message: 'No connection configured.',
+      });
+    }
+    try {
+      const result = await pool.query('SELECT current_database() as db, version() as version');
+      const dbName = result.rows[0]?.db || 'unknown';
+      return res.json({
+        ok: true,
+        connected: true,
+        databaseType: 'postgresql',
+        databaseName: dbName,
+        message: `Connected to PostgreSQL: ${dbName}`,
+      });
+    } catch (err) {
+      return res.json({
+        ok: false,
+        connected: false,
+        databaseType: 'postgresql',
+        databaseName: null,
+        message: `Connection failed: ${err.message}`,
+      });
+    }
+  }
+
+  // Detect from connection string
+  const dbType = detectDatabaseTypeFromConnectionString(connStr);
+  const requestPool = buildPoolFromConnectionString(connStr);
+
+  if (!requestPool) {
+    return res.json({
+      ok: false,
+      connected: false,
+      databaseType: dbType,
+      databaseName: null,
+      message: `Invalid connection string for ${dbType}`,
+    });
+  }
+
+  try {
+    const result = await requestPool.query('SELECT current_database() as db');
+    const dbName = result.rows[0]?.db || 'unknown';
+    await requestPool.end();
+    return res.json({
+      ok: true,
+      connected: true,
+      databaseType: dbType,
+      databaseName: dbName,
+      message: `Connected to ${dbType}: ${dbName}`,
+    });
+  } catch (err) {
+    await requestPool.end().catch(() => {});
+    return res.json({
+      ok: false,
+      connected: false,
+      databaseType: dbType,
+      databaseName: null,
+      message: `Connection failed: ${err.message}`,
+    });
+  }
 
 app.post("/api/release-compare/save", async (req, res) => {
   try {

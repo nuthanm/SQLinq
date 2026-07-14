@@ -6,6 +6,47 @@ function stripSqlNoise(sql) {
     .replace(/;+\s*$/, '');
 }
 
+function validateSqlSyntax(sql) {
+  const normalized = stripSqlNoise(sql);
+  if (!normalized) return { valid: false, error: 'SQL is empty.' };
+  
+  // Check for trailing commas in SELECT clause
+  const selectMatch = normalized.match(/^select\s+(.*?)\s+from/i);
+  if (selectMatch) {
+    const selectList = selectMatch[1].trim();
+    if (/,\s*$/.test(selectList)) {
+      return { valid: false, error: 'Syntax error: trailing comma in SELECT clause.' };
+    }
+    if (/^,/.test(selectList)) {
+      return { valid: false, error: 'Syntax error: leading comma in SELECT clause.' };
+    }
+  }
+  
+  // Check for trailing commas in FROM/WHERE/ORDER BY
+  if (/,\s*(where|from|group|having|order|;|$)/i.test(normalized)) {
+    return { valid: false, error: 'Syntax error: trailing comma before WHERE, FROM, or ORDER BY.' };
+  }
+  
+  // Check for incomplete expressions
+  if (/(\band\s*$|\bor\s*$|,\s*$)/i.test(normalized)) {
+    return { valid: false, error: 'Syntax error: incomplete WHERE condition (ends with AND, OR, or comma).' };
+  }
+  
+  // Check for mismatched parentheses
+  let parenDepth = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    const ch = normalized[i];
+    if (ch === '(') parenDepth += 1;
+    if (ch === ')') parenDepth -= 1;
+    if (parenDepth < 0) return { valid: false, error: 'Syntax error: mismatched parentheses (extra closing paren).' };
+  }
+  if (parenDepth !== 0) {
+    return { valid: false, error: 'Syntax error: mismatched parentheses (unclosed opening paren).' };
+  }
+  
+  return { valid: true };
+}
+
 function splitTopLevel(text) {
   const parts = [];
   let current = '';
@@ -276,6 +317,12 @@ function buildEfCoreSyntax(parsed) {
 }
 
 function convertSqlToLinq(sql, target) {
+  // Validate SQL syntax before conversion
+  const syntaxCheck = validateSqlSyntax(sql);
+  if (!syntaxCheck.valid) {
+    return { ok: false, error: syntaxCheck.error };
+  }
+  
   const parsed = parseBasicSelect(sql);
   if (!parsed.ok) return parsed;
 
@@ -313,4 +360,5 @@ function convertSqlToLinq(sql, target) {
 
 module.exports = {
   convertSqlToLinq,
+  validateSqlSyntax,
 };
