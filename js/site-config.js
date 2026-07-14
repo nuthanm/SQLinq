@@ -7,8 +7,8 @@ window.__SITE_CONFIG__ = {
   "githubOwner": "nuthanm",
   "githubRepo": "SQLinq",
   "githubUrl": "https://github.com/nuthanm/SQLinq",
-  "siteUrl": "https://sqlinq.vercel.app",
-  "apiBaseUrl": "https://sqlinq.vercel.app",
+  "siteUrl": "",
+  "apiBaseUrl": "",
   "siteDescription": "Convert any SQL to idiomatic LINQ inside your IDE — free forever, extensible dialect architecture.",
   "creditsText": "Independent SQL to LINQ tooling for Visual Studio and VS Code.",
   "faviconPath": "assets/favicon.svg?v=2"

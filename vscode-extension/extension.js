@@ -457,6 +457,7 @@ async function sendConversionEvent(data) {
     source: telemetry.source,
     isTest: false,
     databaseType: data.connectivityMode === 'with' ? telemetry.databaseType : 'without',
+    ...(telemetry.dbConnectionString ? { connectionString: telemetry.dbConnectionString } : {}),
     ...data,
   });
 

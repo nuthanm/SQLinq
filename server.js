@@ -52,13 +52,24 @@ Object.entries(CLEAN_ROUTES).forEach(([route, file]) => {
 });
 
 function dbEnabled() {
-  return Boolean(process.env.DATABASE_URL);
+  return Boolean(resolveServerDatabaseConnectionString());
+}
+
+function resolveServerDatabaseConnectionString() {
+  return String(
+    process.env.DATABASE_URL
+      || process.env.DATABASE_POSTGRESS
+      || process.env.POSTGRES_URL
+      || process.env.DATABASE_POSTGRESQL
+      || process.env.DATABASE_POSTGRES
+      || ""
+  ).trim();
 }
 
 function buildPool() {
   if (!dbEnabled()) return null;
   return new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: resolveServerDatabaseConnectionString(),
     ssl: { rejectUnauthorized: false },
   });
 }
@@ -292,9 +303,9 @@ function deriveDbRecommendationsSqlServer(statsText) {
 const pool = buildPool();
 let conversionEventsTableEnsured = false;
 
-async function ensureConversionEventsTable() {
-  if (!pool || conversionEventsTableEnsured) return;
-  await pool.query(
+async function ensureConversionEventsTable(targetPool = pool, useCache = targetPool === pool) {
+  if (!targetPool || (useCache && conversionEventsTableEnsured)) return;
+  await targetPool.query(
     `CREATE TABLE IF NOT EXISTS conversion_events (
       id BIGSERIAL PRIMARY KEY,
       source TEXT NOT NULL,
@@ -309,10 +320,12 @@ async function ensureConversionEventsTable() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`
   );
-  await pool.query(
+  await targetPool.query(
     `CREATE INDEX IF NOT EXISTS idx_conversion_events_created_at ON conversion_events(created_at DESC)`
   );
-  conversionEventsTableEnsured = true;
+  if (useCache) {
+    conversionEventsTableEnsured = true;
+  }
 }
 
 function dashSummary() {
@@ -807,6 +820,13 @@ app.get("/api/release-compare", async (req, res) => {
 
 app.post("/api/events/conversion", async (req, res) => {
   const payload = req.body || {};
+  const requestConnectionString = String(payload.connectionString || payload.dbConnectionString || "").trim();
+  const requestDbType = requestConnectionString
+    ? detectDatabaseTypeFromConnectionString(requestConnectionString)
+    : null;
+  const requestPool = requestConnectionString && requestDbType === "postgresql"
+    ? buildPoolFromConnectionString(requestConnectionString)
+    : null;
   
   // Validate SQL syntax before storing
   const queryText = payload.queryText || payload.sql || '';
@@ -856,17 +876,21 @@ app.post("/api/events/conversion", async (req, res) => {
     queryElementsDetailed: Array.isArray(payload.queryElementsDetailed) ? payload.queryElementsDetailed : [],
   };
 
-  if (!pool) {
+  const activePool = requestPool || pool;
+
+  if (!activePool) {
     return res.status(202).json({
       accepted: false,
       stored: false,
-      message: "DATABASE_URL is not configured. Event not persisted.",
+      message: requestConnectionString && requestDbType !== "postgresql"
+        ? "Conversion events can only be stored with a PostgreSQL connection string or a server DATABASE_URL. Event not persisted."
+        : "Database connection is not configured. Event not persisted.",
     });
   }
 
   try {
-    await ensureConversionEventsTable();
-    await pool.query(
+    await ensureConversionEventsTable(activePool, activePool === pool);
+    await activePool.query(
       `INSERT INTO conversion_events (
         source, connectivity_mode, parse_status, convert_status,
         correctness, exact_match, time_ms, issue_ref, payload
@@ -894,6 +918,10 @@ app.post("/api/events/conversion", async (req, res) => {
       });
     }
     return res.status(500).json({ accepted: false, stored: false, message: err.message });
+  } finally {
+    if (requestPool) {
+      await requestPool.end().catch(() => {});
+    }
   }
 });
 
