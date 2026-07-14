@@ -126,7 +126,7 @@
         "sqlinq.dbConnectionString": {
           "type": "string",
           "default": "",
-          "description": "PostgreSQL connection string for live query execution, EXPLAIN ANALYZE, and result-set preview (e.g. postgres://user:pass@host/db). Stored in VS Code settings — use a read-only account."
+          "description": "Database connection string for live query execution and plan analysis (PostgreSQL, SQL Server, MySQL, Oracle). Stored in VS Code settings — use a read-only account."
         }
       }
     }

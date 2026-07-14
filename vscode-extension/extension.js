@@ -1,5 +1,7 @@
 const vscode = require('vscode');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const { convertSqlToLinq } = require('./src/sqlinq-converter');
 
 let runtimeConfig = {};
@@ -9,10 +11,7 @@ try {
   runtimeConfig = {};
 }
 
-const SAMPLE_SQL = `SELECT CustomerId, Name
-FROM Customers
-WHERE IsActive = 1
-ORDER BY Name;`;
+const SAMPLE_SQL = '';
 
 function getTelemetryConfig() {
   const cfg = vscode.workspace.getConfiguration('sqlinq');
@@ -31,27 +30,102 @@ function getTelemetryConfig() {
 }
 
 function getDbPresets() {
-  // Load database connection presets from environment variables
-  // Format: DATABASE_PRESET_<NAME>_<DBTYPE> or DATABASE_<NAME>
+  // Load presets from process env and workspace .env files.
   const presets = {};
+  const workspaceEnv = loadWorkspaceEnv();
+  const env = { ...workspaceEnv, ...process.env };
   
   // PostgreSQL
-  const pgUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_POSTGRESQL;
+  const pgUrl = env.DATABASE_URL
+    || env.POSTGRES_URL
+    || env.DATABASE_POSTGRESQL
+    || env.DATABASE_POSTGRES
+    || env.DATABASE_POSTGRESS;
   if (pgUrl) presets.postgresql = pgUrl;
   
   // SQL Server
-  const mssqlUrl = process.env.DATABASE_MSSQL || process.env.SQL_SERVER_URL || process.env.DATABASE_SQLSERVER;
+  const mssqlUrl = env.DATABASE_MSSQL || env.SQL_SERVER_URL || env.DATABASE_SQLSERVER;
   if (mssqlUrl) presets.mssql = mssqlUrl;
   
   // MySQL
-  const mysqlUrl = process.env.DATABASE_MYSQL || process.env.MYSQL_URL;
+  const mysqlUrl = env.DATABASE_MYSQL || env.MYSQL_URL;
   if (mysqlUrl) presets.mysql = mysqlUrl;
   
   // Oracle
-  const oracleUrl = process.env.DATABASE_ORACLE || process.env.ORACLE_URL;
+  const oracleUrl = env.DATABASE_ORACLE || env.ORACLE_URL;
   if (oracleUrl) presets.oracle = oracleUrl;
   
   return presets;
+}
+
+function parseDotEnvText(text) {
+  const values = {};
+  const lines = String(text || '').split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const idx = line.indexOf('=');
+    if (idx <= 0) continue;
+    const key = line.slice(0, idx).trim();
+    let value = line.slice(idx + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (key) values[key] = value;
+  }
+  return values;
+}
+
+function loadWorkspaceEnv() {
+  const folders = vscode.workspace.workspaceFolders || [];
+  const firstFolder = folders.length ? folders[0].uri.fsPath : '';
+  if (!firstFolder) return {};
+
+  const candidates = ['.env', '.env.local'];
+  const merged = {};
+  for (const fileName of candidates) {
+    try {
+      const fullPath = path.join(firstFolder, fileName);
+      if (!fs.existsSync(fullPath)) continue;
+      const fileText = fs.readFileSync(fullPath, 'utf8');
+      Object.assign(merged, parseDotEnvText(fileText));
+    } catch {
+      // Ignore malformed or inaccessible env files; process env is still used.
+    }
+  }
+  return merged;
+}
+
+function getDbPresetTemplate(preset) {
+  const key = String(preset || '').toLowerCase();
+  if (key === 'postgresql') {
+    return 'postgres://user:password@localhost:5432/database';
+  }
+  if (key === 'mssql') {
+    return 'Server=localhost;Database=master;User Id=sa;Password=your_password;Encrypt=true;TrustServerCertificate=true;';
+  }
+  if (key === 'mysql') {
+    return 'mysql://user:password@localhost:3306/database';
+  }
+  if (key === 'oracle') {
+    return 'User Id=user;Password=password;Data Source=localhost:1521/XEPDB1;';
+  }
+  return '';
+}
+
+function resolveDbPresetConnection(preset) {
+  const key = String(preset || '').toLowerCase();
+  const presets = getDbPresets();
+  if (presets[key]) {
+    return {
+      connectionString: String(presets[key]),
+      source: 'environment',
+    };
+  }
+  return {
+    connectionString: getDbPresetTemplate(key),
+    source: 'template',
+  };
 }
 
 function fnv1a32(value) {
@@ -446,15 +520,25 @@ function getConnectivityDetails(mode) {
 }
 
 function buildInitialConversion(sqlText, target) {
-  const result = convertSqlToLinq(sqlText, target);
-  return result.ok
-    ? result
-    : {
-        ok: false,
-        error: result.error,
-        output: '',
-        status: result.error,
-      };
+  try {
+    const result = convertSqlToLinq(sqlText, target);
+    return result && result.ok
+      ? result
+      : {
+          ok: false,
+          error: result && result.error ? result.error : 'Conversion failed.',
+          output: '',
+          status: result && result.error ? result.error : 'Conversion failed.',
+        };
+  } catch (err) {
+    const message = err && err.message ? err.message : 'Conversion threw an unexpected error.';
+    return {
+      ok: false,
+      error: message,
+      output: '',
+      status: message,
+    };
+  }
 }
 
 function applyConversionToEditor(result, editor) {
@@ -539,6 +623,7 @@ async function convertSelectionDirect(editor, target = 'method') {
 
 function getWebviewContent(webview, state) {
   const nonce = String(Date.now());
+  const extensionVersion = (vscode.extensions.getExtension('sqlinq.sqlinq-vscode-extension') || vscode.extensions.getExtension('sqlinq.sqlinq'))?.packageJSON?.version || 'unknown';
   const styles = [
     '.shell{font-family:var(--vscode-font-family, sans-serif);padding:16px;color:var(--vscode-foreground);background:var(--vscode-editor-background)}',
     '.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}',
@@ -568,17 +653,22 @@ function getWebviewContent(webview, state) {
     '.result-table th{background:var(--vscode-sideBar-background, transparent);font-weight:600}',
     '.rec-list{margin:6px 0 0;padding-left:18px;font-size:12px;line-height:1.6}',
     '.rec-list li{margin-bottom:2px}',
+    '.placeholder{font-size:12px;opacity:.75;padding:8px;border:1px dashed var(--vscode-editorWidget-border, #444);border-radius:6px;background:var(--vscode-editor-background)}',
     '.shortcut-hint{font-size:11px;opacity:.6;margin-left:6px}',
     '.conn-row{margin-top:12px}',
+    '.conn-grid{display:grid;grid-template-columns:minmax(180px,1fr) minmax(260px,2fr) auto auto;gap:8px;align-items:end;width:100%}',
     '.conn-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}',
+    '.conn-grid button{white-space:nowrap;min-width:66px}',
     '.conn-note{font-size:11px;opacity:.7}',
     'code{background:#2a2a2a;color:#a8e6a8;padding:2px 6px;border-radius:3px;font-family:"Courier New",monospace;font-size:11px;word-break:break-all}',
-    '@media (max-width: 900px){.grid{grid-template-columns:1fr}}',
+    '.footer{margin-top:12px;padding-top:6px;text-align:right;font-size:11px;opacity:.7;border-top:1px solid var(--vscode-editorWidget-border, #444)}',
+    '@media (max-width: 1080px){.conn-grid{grid-template-columns:1fr 1fr auto auto}}',
+    '@media (max-width: 900px){.grid{grid-template-columns:1fr}.conn-grid{grid-template-columns:1fr}.conn-grid button{width:100%}}',
   ].join('');
 
-  const initialSql = escapeHtml(state.sqlText || SAMPLE_SQL);
-  const initialOutput = escapeHtml(state.result.ok ? state.result.output : '');
-  const initialStatus = escapeHtml(state.result.status || 'Ready to convert a basic SELECT query.');
+  const initialSql = escapeHtml(state.sqlText || '');
+  const initialOutput = '';
+  const initialStatus = 'Ready. Click Convert to generate LINQ preview.';
   const connectivity = getConnectivityDetails(state.connectivityMode || 'without');
   const initialMode = state.connectivityMode || 'without';
   const initialConnectionString = escapeHtml(state.dbConnectionString || '');
@@ -618,7 +708,8 @@ function getWebviewContent(webview, state) {
           <div class="muted">${escapeHtml(getTargetLabel(state.target))}</div>
         </div>
       </div>
-      <div class="row" style="margin-top:12px;gap:8px;align-items:flex-end">
+      <div class="row" id="connectionControls" style="margin-top:12px;display:${initialMode === 'with' ? 'flex' : 'none'}">
+        <div class="conn-grid">
         <div style="min-width:200px;flex:1">
           <label for="dbPreset">Database Preset</label>
           <select id="dbPreset">
@@ -635,8 +726,9 @@ function getWebviewContent(webview, state) {
         </div>
         <button class="secondary" id="testConnection" title="Test connection">Test</button>
         <button class="secondary" id="saveConnection" title="Save to VS Code settings">Save</button>
+        </div>
       </div>
-      <div id="connectionStatus" style="margin-top:8px;padding:8px;border-radius:4px;font-size:13px;display:none;background:var(--vscode-editorWidget-border, transparent)">
+      <div id="connectionStatus" style="margin-top:8px;padding:8px;border-radius:4px;font-size:13px;display:${initialMode === 'with' ? 'none' : 'none'};background:var(--vscode-editorWidget-border, transparent)">
         <span id="statusDot" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:#ccc"></span>
         <span id="statusText">Not tested</span>
       </div>
@@ -655,22 +747,23 @@ function getWebviewContent(webview, state) {
         <button class="primary" id="convert" title="Ctrl+Shift+L">Convert</button>
         <button class="secondary" id="insert" title="Insert LINQ into active editor">Insert into editor</button>
         <button class="secondary" id="copy" title="Copy LINQ to clipboard">Copy output</button>
-        <button class="secondary" id="runQuery" title="Ctrl+Shift+R — Run query against PostgreSQL and show EXPLAIN ANALYZE">Run &amp; Explain</button>
+        <button class="secondary" id="runQuery" title="Ctrl+Shift+R — Run query and show execution-plan details">Run &amp; Explain</button>
       </div>
       <div class="status" id="status">${initialStatus}</div>
       <div class="status muted" id="telemetryStatus">Telemetry: idle</div>
+      <div class="db-section" id="dbSection" style="display:none">
+        <h3>Live DB results <span class="muted" id="dbElapsed"></span></h3>
+        <div id="dbResultWrap"></div>
+        <h3 style="margin-top:12px">Execution plan / explain details</h3>
+        <pre id="dbExplain" style="min-height:60px;font-size:11px">Run &amp; Explain to see plan details here (operators, cost, timing, rows, loops, or engine-native output).</pre>
+        <h3 style="margin-top:12px">Performance recommendations</h3>
+        <ul class="rec-list" id="dbRecs"><li class="placeholder">Recommendations will appear after query execution based on the execution plan and SQL shape.</li></ul>
+      </div>
       <div class="outputs">
         <h3>Expected output results in this mode</h3>
         <ul id="modeOutputs">${connectivityRows}</ul>
       </div>
-      <div class="db-section" id="dbSection" style="display:none">
-        <h3>Live DB results <span class="muted" id="dbElapsed"></span></h3>
-        <div id="dbResultWrap"></div>
-        <h3 style="margin-top:12px">EXPLAIN ANALYZE</h3>
-        <pre id="dbExplain" style="min-height:60px;font-size:11px"></pre>
-        <h3 style="margin-top:12px">Performance recommendations</h3>
-        <ul class="rec-list" id="dbRecs"></ul>
-      </div>
+      <div class="footer">SQLinq v${escapeHtml(extensionVersion)}</div>
     </div>
     <script nonce="${nonce}">
       const vscode = acquireVsCodeApi();
@@ -681,12 +774,16 @@ function getWebviewContent(webview, state) {
       const status = document.getElementById('status');
       const telemetryStatus = document.getElementById('telemetryStatus');
       const modeOutputs = document.getElementById('modeOutputs');
+      const connectionControls = document.getElementById('connectionControls');
       const connectionString = document.getElementById('connectionString');
+      const dbPreset = document.getElementById('dbPreset');
       const dbSection = document.getElementById('dbSection');
       const dbResultWrap = document.getElementById('dbResultWrap');
       const dbExplain = document.getElementById('dbExplain');
       const dbRecs = document.getElementById('dbRecs');
       const dbElapsed = document.getElementById('dbElapsed');
+      const connectionStatus = document.getElementById('connectionStatus');
+      let telemetryTimer = null;
 
       function setState(nextStatus, nextOutput, outputs) {
         status.textContent = nextStatus;
@@ -719,7 +816,7 @@ function getWebviewContent(webview, state) {
           const structuredPlan = parseExplainOutput(explainText);
           dbExplain.innerHTML = '<strong style="font-size:13px;display:block;margin-bottom:8px">Execution Plan Analysis:</strong>' + structuredPlan.html;
         } else {
-          dbExplain.textContent = '(no plan)';
+          dbExplain.textContent = 'No EXPLAIN ANALYZE output available for this execution.';
         }
         
         // Parse and display detailed recommendations
@@ -766,6 +863,14 @@ function getWebviewContent(webview, state) {
           }
         }
         
+        if (!html.length) {
+          const escaped = explainText
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;');
+          html.push('<pre style="margin:0;white-space:pre-wrap;font-size:11px">' + escaped + '</pre>');
+        }
+
         return { html: html.join(''), nodeInfo: nodeInfo };
       }
 
@@ -855,8 +960,43 @@ function getWebviewContent(webview, state) {
         statusDiv.style.display = '';
       }
 
-      document.getElementById('convert').addEventListener('click', () => {
+      function updateConnectivityUi(mode) {
+        const withDb = mode === 'with';
+        connectionControls.style.display = withDb ? 'flex' : 'none';
+        if (!withDb) {
+          connectionStatus.style.display = 'none';
+        }
+      }
+
+      updateConnectivityUi(connectivity.value);
+
+      connectivity.addEventListener('change', () => {
+        updateConnectivityUi(connectivity.value);
+      });
+
+      function startTelemetrySyncIndicator() {
         telemetryStatus.textContent = 'Telemetry: syncing...';
+        if (telemetryTimer) {
+          clearTimeout(telemetryTimer);
+        }
+        telemetryTimer = setTimeout(() => {
+          telemetryStatus.textContent = 'Telemetry: delayed or unavailable.';
+          telemetryTimer = null;
+        }, 8000);
+      }
+
+      function stopTelemetrySyncIndicator(nextText) {
+        if (telemetryTimer) {
+          clearTimeout(telemetryTimer);
+          telemetryTimer = null;
+        }
+        if (nextText) {
+          telemetryStatus.textContent = nextText;
+        }
+      }
+
+      document.getElementById('convert').addEventListener('click', () => {
+        startTelemetrySyncIndicator();
         vscode.postMessage({ type: 'convert', sql: sql.value, target: target.value, connectivity: connectivity.value });
       });
 
@@ -872,7 +1012,6 @@ function getWebviewContent(webview, state) {
         vscode.postMessage({ type: 'testConnection', connectionString: connectionString.value });
       });
 
-      const dbPreset = document.getElementById('dbPreset');
       if (dbPreset) {
         dbPreset.addEventListener('change', (e) => {
           const preset = e.target.value;
@@ -901,7 +1040,7 @@ function getWebviewContent(webview, state) {
           setState(message.status, message.output, message.outputs);
         }
         if (message.type === 'telemetry') {
-          telemetryStatus.textContent = message.status;
+          stopTelemetrySyncIndicator(message.status);
         }
         if (message.type === 'connectionSaved') {
           status.textContent = message.status || 'Connection string saved.';
@@ -912,10 +1051,11 @@ function getWebviewContent(webview, state) {
         }
         if (message.type === 'dbError') {
           dbSection.style.display = '';
-          dbResultWrap.textContent = 'Error: ' + (message.message || 'Unknown error');
-          dbExplain.textContent = '';
-          dbRecs.innerHTML = '';
-          status.textContent = 'DB execution failed.';
+          const dbErrorText = message.message || 'Unknown database execution error.';
+          dbResultWrap.textContent = 'Error: ' + dbErrorText;
+          dbExplain.textContent = 'Run & Explain to see plan details here (operators, cost, timing, rows, loops, or engine-native output).';
+          dbRecs.innerHTML = '<li class="placeholder">Recommendations will appear after query execution based on the execution plan and SQL shape.</li>';
+          status.textContent = 'Database execution failed: ' + dbErrorText;
         }
         if (message.type === 'autoRunQuery') {
           sql.value = message.sql || sql.value;
@@ -926,7 +1066,12 @@ function getWebviewContent(webview, state) {
         }
         if (message.type === 'dbPresetLoaded') {
           connectionString.value = message.connectionString || '';
-          status.textContent = 'Loaded ' + (message.preset || 'selected') + ' connection string from environment.';
+          if (dbPreset) {
+            // Reset selection so choosing the same preset again still fires change.
+            dbPreset.value = '';
+          }
+          const sourceLabel = message.source === 'environment' ? 'environment/.env' : 'default template';
+          status.textContent = 'Loaded ' + (message.preset || 'selected') + ' connection string from ' + sourceLabel + '.';
         }
       });
     </script>
@@ -936,6 +1081,13 @@ function getWebviewContent(webview, state) {
 
 function activate(context) {
   let currentPanel = null;
+  let lastEditor = vscode.window.activeTextEditor || null;
+
+  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((editor) => {
+    if (editor) {
+      lastEditor = editor;
+    }
+  }));
 
   const openWebview = (seedSql = SAMPLE_SQL, seedTarget = 'method', seedConnectivity = 'without') => {
     if (currentPanel) {
@@ -953,13 +1105,16 @@ function activate(context) {
       }
     );
 
-    const initialResult = buildInitialConversion(seedSql, seedTarget);
     panel.webview.html = getWebviewContent(panel.webview, {
       sqlText: seedSql,
       target: seedTarget,
       connectivityMode: seedConnectivity,
       dbConnectionString: getTelemetryConfig().dbConnectionString,
-      result: initialResult,
+      result: {
+        ok: true,
+        output: '',
+        status: 'Ready. Click Convert to generate LINQ preview.',
+      },
     });
 
     panel.webview.onDidReceiveMessage(async (message) => {
@@ -1009,16 +1164,18 @@ function activate(context) {
       }
 
       if (message.type === 'insert') {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
+        const editor = vscode.window.activeTextEditor || lastEditor;
+        if (!editor || editor.document.isClosed) {
           vscode.window.showInformationMessage('Open a file first, then use Insert into editor.');
           return;
         }
 
-        const output = String(message.output || '').trim();
-        if (!output) return;
+        const linqOutput = String(message.output || '').trim();
+        if (!linqOutput) return;
 
-        await applyConversionToEditor({ output }, editor);
+        await vscode.window.showTextDocument(editor.document, { preview: false, preserveFocus: true });
+
+        await applyConversionToEditor({ output: linqOutput }, editor);
       }
 
       if (message.type === 'saveConnectionString') {
@@ -1029,13 +1186,13 @@ function activate(context) {
       }
 
       if (message.type === 'loadDbPreset') {
-        const presets = getDbPresets();
         const preset = String(message.preset || '').toLowerCase();
-        const connStr = presets[preset] || '';
+        const resolved = resolveDbPresetConnection(preset);
         panel.webview.postMessage({
           type: 'dbPresetLoaded',
           preset: preset,
-          connectionString: connStr,
+          source: resolved.source,
+          connectionString: resolved.connectionString,
         });
         return;
       }
@@ -1163,10 +1320,16 @@ function activate(context) {
               statusText: `Query returned ${response.rowCount ?? 0} row(s) in ${response.elapsedMs ?? 0} ms.`,
             });
           } else {
-            panel.webview.postMessage({ type: 'dbError', message: response?.message || 'DB execution failed.' });
+            panel.webview.postMessage({
+              type: 'dbError',
+              message: response?.message || response?.error || response?.details || 'Database execution failed.',
+            });
           }
         } catch (err) {
-          panel.webview.postMessage({ type: 'dbError', message: err && err.message ? err.message : 'Network error reaching DB endpoint.' });
+          panel.webview.postMessage({
+            type: 'dbError',
+            message: err && err.message ? err.message : 'Network error reaching DB endpoint.',
+          });
         }
       }
     });

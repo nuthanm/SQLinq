@@ -92,6 +92,183 @@ function detectDatabaseTypeFromConnectionString(connectionString) {
   return 'postgresql';
 }
 
+function parseBooleanConnectionValue(value, fallback = false) {
+  if (value == null) return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "yes", "1", "on"].includes(normalized)) return true;
+  if (["false", "no", "0", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
+function parseKeyValueConnectionString(connectionString) {
+  const entries = String(connectionString || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const map = {};
+  for (const entry of entries) {
+    const idx = entry.indexOf("=");
+    if (idx <= 0) continue;
+    const key = entry.slice(0, idx).trim().toLowerCase();
+    const value = entry.slice(idx + 1).trim();
+    if (key) map[key] = value;
+  }
+  return map;
+}
+
+function getOptionalDriver(moduleName, installHint) {
+  try {
+    return require(moduleName);
+  } catch {
+    throw new Error(`Database driver \"${moduleName}\" is not installed. Install with: npm install ${installHint}`);
+  }
+}
+
+function buildMssqlConfigFromConnectionString(connectionString) {
+  const raw = String(connectionString || "").trim();
+  if (!raw) throw new Error("SQL Server connection string is required.");
+
+  if (/^mssql:\/\//i.test(raw)) {
+    const url = new URL(raw);
+    return {
+      server: url.hostname,
+      port: Number(url.port || 1433),
+      user: decodeURIComponent(url.username || ""),
+      password: decodeURIComponent(url.password || ""),
+      database: decodeURIComponent(url.pathname.replace(/^\//, "") || "master"),
+      options: {
+        encrypt: true,
+        trustServerCertificate: true,
+        enableArithAbort: true,
+      },
+    };
+  }
+
+  const map = parseKeyValueConnectionString(raw);
+  const server = map.server || map["data source"] || map.address || map.addr || map.networkaddress || "localhost";
+  const user = map["user id"] || map.uid || map.user || map.username || "";
+  const password = map.password || map.pwd || "";
+  const database = map.database || map.initialcatalog || map["initial catalog"] || "master";
+  const port = Number(map.port || 1433);
+  return {
+    server,
+    port,
+    user,
+    password,
+    database,
+    options: {
+      encrypt: parseBooleanConnectionValue(map.encrypt, true),
+      trustServerCertificate: parseBooleanConnectionValue(map.trustservercertificate, true),
+      enableArithAbort: true,
+    },
+  };
+}
+
+function buildMysqlConfigFromConnectionString(connectionString) {
+  const raw = String(connectionString || "").trim();
+  if (!raw) throw new Error("MySQL connection string is required.");
+
+  if (/^mysql:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  const map = parseKeyValueConnectionString(raw);
+  return {
+    host: map.host || map.server || "localhost",
+    port: Number(map.port || 3306),
+    user: map.user || map.username || map.uid || map["user id"] || "",
+    password: map.password || map.pwd || "",
+    database: map.database || map.schema || "",
+    ssl: parseBooleanConnectionValue(map.ssl, false) ? {} : undefined,
+  };
+}
+
+function buildOracleConfigFromConnectionString(connectionString) {
+  const raw = String(connectionString || "").trim();
+  if (!raw) throw new Error("Oracle connection string is required.");
+
+  if (/^oracle:\/\//i.test(raw)) {
+    const url = new URL(raw);
+    return {
+      user: decodeURIComponent(url.username || ""),
+      password: decodeURIComponent(url.password || ""),
+      connectString: decodeURIComponent(url.pathname.replace(/^\//, "") || ""),
+    };
+  }
+
+  const map = parseKeyValueConnectionString(raw);
+  return {
+    user: map.user || map.username || map.uid || map["user id"] || "",
+    password: map.password || map.pwd || "",
+    connectString: map["data source"] || map.datasource || map.connectstring || "",
+  };
+}
+
+function buildLimitedQueryByDbType(sql, dbType) {
+  const raw = String(sql || "").trim().replace(/;\s*$/, "");
+  if (!raw) return raw;
+
+  if (dbType === "postgresql" || dbType === "mysql") {
+    return /\blimit\s+\d+/i.test(raw) ? raw : `${raw} LIMIT 100`;
+  }
+
+  if (dbType === "oracle") {
+    if (/\bfetch\s+first\s+\d+\s+rows\s+only\b/i.test(raw) || /\brownum\s*<=\s*\d+/i.test(raw)) {
+      return raw;
+    }
+    return `${raw} FETCH FIRST 100 ROWS ONLY`;
+  }
+
+  if (dbType === "mssql") {
+    if (/^\s*select\s+top\s*\(?\s*\d+/i.test(raw) || /^\s*with\b/i.test(raw)) {
+      return raw;
+    }
+    return raw.replace(/^\s*select\b/i, "SELECT TOP (100)");
+  }
+
+  return raw;
+}
+
+function deriveDbRecommendationsMySql(explainText) {
+  const recs = [];
+  const text = String(explainText || "");
+  if (/\b"access_type"\s*:\s*"ALL"\b/i.test(text) || /\btype\s*[:=]\s*ALL\b/i.test(text)) {
+    recs.push("Full table scan detected in MySQL EXPLAIN output. Consider adding an index on filter/join columns.");
+  }
+  if (/using filesort/i.test(text)) recs.push("MySQL is using filesort. Consider indexing ORDER BY columns.");
+  if (/using temporary/i.test(text)) recs.push("Temporary table usage detected. Review GROUP BY/ORDER BY strategy and indexes.");
+  if (!recs.length) recs.push("No major performance concerns detected in the execution plan.");
+  return recs;
+}
+
+function deriveDbRecommendationsOracle(explainText) {
+  const recs = [];
+  const text = String(explainText || "");
+  if (/TABLE ACCESS FULL/i.test(text)) recs.push("Oracle full table scan detected. Consider indexes on selective predicates.");
+  if (/HASH JOIN/i.test(text)) recs.push("Hash join detected. Verify join-column indexing and fresh statistics.");
+  if (/SORT ORDER BY/i.test(text)) recs.push("Sort operation detected. Consider index support for ORDER BY columns.");
+  if (!recs.length) recs.push("No major performance concerns detected in the execution plan.");
+  return recs;
+}
+
+function extractSqlServerExplainOutput(result) {
+  const snippets = [];
+  const recordsets = Array.isArray(result?.recordsets) ? result.recordsets : [];
+  for (const recordset of recordsets) {
+    for (const row of recordset || []) {
+      for (const value of Object.values(row || {})) {
+        const text = String(value || "");
+        if (/showplanxml/i.test(text) || /<ShowPlanXML/i.test(text)) {
+          snippets.push(text);
+        }
+      }
+    }
+  }
+  if (snippets.length) return snippets.join("\n\n");
+  if (recordsets.length) return JSON.stringify(recordsets, null, 2);
+  return "No SQL Server execution-plan output returned.";
+}
+
 function deriveDbRecommendationsSqlServer(statsText) {
   const recs = [];
   const text = String(statsText || '');
@@ -1017,11 +1194,9 @@ app.post("/api/db/execute", async (req, res) => {
     return res.status(400).json({ ok: false, message: "sql is required." });
   }
 
-  const requestPool = buildPoolFromConnectionString(connectionString);
-  const activePool = requestPool || pool;
-  if (!activePool) {
-    return res.status(503).json({ ok: false, message: "Database not configured. Provide a connection string in the extension UI or set DATABASE_URL on the server." });
-  }
+  const requestedDbType = connectionString
+    ? detectDatabaseTypeFromConnectionString(connectionString)
+    : "postgresql";
 
   const stripped = sql.trim().replace(/\/\*[\s\S]*?\*\//g, "").replace(/--.*$/gm, "").trim();
   if (!/^(SELECT|WITH|EXPLAIN)\b/i.test(stripped)) {
@@ -1030,40 +1205,143 @@ app.post("/api/db/execute", async (req, res) => {
 
   try {
     const start = Date.now();
-    const safeQuery = /LIMIT\s+\d+/i.test(stripped) ? sql : `${sql.replace(/;\s*$/, "")} LIMIT 100`;
-    const result = await activePool.query(safeQuery);
-    const elapsedMs = Date.now() - start;
-
+    let rowCount = 0;
+    let columns = [];
+    let rows = [];
     let explainOutput = null;
     let recommendations = [];
+    const explainSql = sql.trim().replace(/;\s*$/, "");
+    const safeQuery = buildLimitedQueryByDbType(sql, requestedDbType);
 
-    if (explain) {
-      try {
-        const explainSql = sql.trim().replace(/;\s*$/, "");
-        const planResult = await activePool.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) ${explainSql}`);
-        explainOutput = planResult.rows.map((r) => Object.values(r)[0]).join("\n");
-        recommendations = deriveDbRecommendations(explainOutput);
-      } catch (explainErr) {
-        explainOutput = `EXPLAIN failed: ${explainErr.message}`;
-        recommendations = ['Could not retrieve execution plan.'];
+    if (requestedDbType === "postgresql") {
+      const requestPool = buildPoolFromConnectionString(connectionString);
+      const activePool = requestPool || pool;
+      if (!activePool) {
+        return res.status(503).json({ ok: false, message: "Database not configured. Provide a connection string in the extension UI or set DATABASE_URL on the server." });
       }
+
+      try {
+        const result = await activePool.query(safeQuery);
+        rowCount = result.rowCount;
+        columns = result.fields ? result.fields.map((f) => f.name) : [];
+        rows = result.rows.slice(0, 100);
+
+        if (explain) {
+          try {
+            const planResult = await activePool.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) ${explainSql}`);
+            explainOutput = planResult.rows.map((r) => Object.values(r)[0]).join("\n");
+            recommendations = deriveDbRecommendations(explainOutput);
+          } catch (explainErr) {
+            explainOutput = `EXPLAIN failed: ${explainErr.message}`;
+            recommendations = ["Could not retrieve execution plan."];
+          }
+        }
+      } finally {
+        if (requestPool) {
+          await requestPool.end().catch(() => {});
+        }
+      }
+    } else if (requestedDbType === "mssql") {
+      const mssql = getOptionalDriver("mssql", "mssql");
+      const mssqlConfig = buildMssqlConfigFromConnectionString(connectionString);
+      const mssqlPool = await mssql.connect(mssqlConfig);
+      try {
+        const result = await mssqlPool.request().query(safeQuery);
+        const recordset = Array.isArray(result.recordset) ? result.recordset : [];
+        rows = recordset.slice(0, 100);
+        rowCount = Array.isArray(result.rowsAffected) && result.rowsAffected.length ? result.rowsAffected[0] : rows.length;
+        columns = rows.length ? Object.keys(rows[0]) : [];
+
+        if (explain) {
+          try {
+            const explainResult = await mssqlPool.request().batch(`SET STATISTICS XML ON; ${explainSql}; SET STATISTICS XML OFF;`);
+            explainOutput = extractSqlServerExplainOutput(explainResult);
+            recommendations = deriveDbRecommendationsSqlServer(explainOutput);
+          } catch (explainErr) {
+            explainOutput = `EXPLAIN failed: ${explainErr.message}`;
+            recommendations = ["Could not retrieve execution plan."];
+          }
+        }
+      } finally {
+        await mssqlPool.close().catch(() => {});
+      }
+    } else if (requestedDbType === "mysql") {
+      const mysql = getOptionalDriver("mysql2/promise", "mysql2");
+      const mysqlConnection = await mysql.createConnection(buildMysqlConfigFromConnectionString(connectionString));
+      try {
+        const [queryRows, queryFields] = await mysqlConnection.query(safeQuery);
+        const resultRows = Array.isArray(queryRows) ? queryRows : [];
+        rows = resultRows.slice(0, 100);
+        rowCount = resultRows.length;
+        columns = Array.isArray(queryFields) ? queryFields.map((f) => f.name) : (rows.length ? Object.keys(rows[0]) : []);
+
+        if (explain) {
+          try {
+            const [planRows] = await mysqlConnection.query(`EXPLAIN FORMAT=JSON ${explainSql}`);
+            explainOutput = Array.isArray(planRows)
+              ? planRows.map((r) => String(r.EXPLAIN || JSON.stringify(r))).join("\n")
+              : String(planRows || "");
+            recommendations = deriveDbRecommendationsMySql(explainOutput);
+          } catch (jsonExplainErr) {
+            const [planRows] = await mysqlConnection.query(`EXPLAIN ${explainSql}`);
+            explainOutput = JSON.stringify(planRows || [], null, 2);
+            recommendations = deriveDbRecommendationsMySql(explainOutput);
+            if (!recommendations.length) {
+              recommendations = [`EXPLAIN FORMAT=JSON not available: ${jsonExplainErr.message}`];
+            }
+          }
+        }
+      } finally {
+        await mysqlConnection.end().catch(() => {});
+      }
+    } else if (requestedDbType === "oracle") {
+      const oracledb = getOptionalDriver("oracledb", "oracledb");
+      const oracleConfig = buildOracleConfigFromConnectionString(connectionString);
+      const oracleConnection = await oracledb.getConnection(oracleConfig);
+      try {
+        const result = await oracleConnection.execute(safeQuery, [], {
+          outFormat: oracledb.OUT_FORMAT_OBJECT,
+          maxRows: 100,
+        });
+        rows = Array.isArray(result.rows) ? result.rows : [];
+        rowCount = rows.length;
+        columns = Array.isArray(result.metaData) ? result.metaData.map((c) => c.name) : [];
+
+        if (explain) {
+          try {
+            await oracleConnection.execute(`EXPLAIN PLAN FOR ${explainSql}`);
+            const plan = await oracleConnection.execute(
+              "SELECT plan_table_output FROM TABLE(DBMS_XPLAN.DISPLAY())",
+              [],
+              { outFormat: oracledb.OUT_FORMAT_OBJECT }
+            );
+            explainOutput = (plan.rows || []).map((r) => r.PLAN_TABLE_OUTPUT || Object.values(r)[0]).join("\n");
+            recommendations = deriveDbRecommendationsOracle(explainOutput);
+          } catch (explainErr) {
+            explainOutput = `EXPLAIN failed: ${explainErr.message}`;
+            recommendations = ["Could not retrieve execution plan."];
+          }
+        }
+      } finally {
+        await oracleConnection.close().catch(() => {});
+      }
+    } else {
+      return res.status(400).json({ ok: false, message: `Unsupported database type: ${requestedDbType}` });
     }
 
+    const elapsedMs = Date.now() - start;
     return res.json({
       ok: true,
-      rowCount: result.rowCount,
-      columns: result.fields ? result.fields.map((f) => f.name) : [],
-      rows: result.rows.slice(0, 100),
+      rowCount,
+      columns,
+      rows,
       elapsedMs,
       explainOutput,
       recommendations,
+      databaseType: requestedDbType,
     });
   } catch (err) {
     return res.status(500).json({ ok: false, message: err.message });
-  } finally {
-    if (requestPool) {
-      await requestPool.end().catch(() => {});
-    }
   }
 });
 
@@ -1105,31 +1383,96 @@ app.post("/api/db/detect", async (req, res) => {
 
   // Detect from connection string
   const dbType = detectDatabaseTypeFromConnectionString(connStr);
-  const requestPool = buildPoolFromConnectionString(connStr);
 
-  if (!requestPool) {
+  try {
+    if (dbType === "postgresql") {
+      const requestPool = buildPoolFromConnectionString(connStr);
+      if (!requestPool) {
+        return res.json({
+          ok: false,
+          connected: false,
+          databaseType: dbType,
+          databaseName: null,
+          message: `Invalid connection string for ${dbType}`,
+        });
+      }
+      try {
+        const result = await requestPool.query("SELECT current_database() as db");
+        const dbName = result.rows[0]?.db || "unknown";
+        return res.json({
+          ok: true,
+          connected: true,
+          databaseType: dbType,
+          databaseName: dbName,
+          message: `Connected to ${dbType}: ${dbName}`,
+        });
+      } finally {
+        await requestPool.end().catch(() => {});
+      }
+    }
+
+    if (dbType === "mssql") {
+      const mssql = getOptionalDriver("mssql", "mssql");
+      const mssqlPool = await mssql.connect(buildMssqlConfigFromConnectionString(connStr));
+      try {
+        const result = await mssqlPool.request().query("SELECT DB_NAME() AS db");
+        const dbName = result.recordset?.[0]?.db || "unknown";
+        return res.json({
+          ok: true,
+          connected: true,
+          databaseType: dbType,
+          databaseName: dbName,
+          message: `Connected to ${dbType}: ${dbName}`,
+        });
+      } finally {
+        await mssqlPool.close().catch(() => {});
+      }
+    }
+
+    if (dbType === "mysql") {
+      const mysql = getOptionalDriver("mysql2/promise", "mysql2");
+      const mysqlConnection = await mysql.createConnection(buildMysqlConfigFromConnectionString(connStr));
+      try {
+        const [rows] = await mysqlConnection.query("SELECT DATABASE() AS db");
+        const dbName = Array.isArray(rows) ? (rows[0]?.db || "unknown") : "unknown";
+        return res.json({
+          ok: true,
+          connected: true,
+          databaseType: dbType,
+          databaseName: dbName,
+          message: `Connected to ${dbType}: ${dbName}`,
+        });
+      } finally {
+        await mysqlConnection.end().catch(() => {});
+      }
+    }
+
+    if (dbType === "oracle") {
+      const oracledb = getOptionalDriver("oracledb", "oracledb");
+      const oracleConnection = await oracledb.getConnection(buildOracleConfigFromConnectionString(connStr));
+      try {
+        const result = await oracleConnection.execute("SELECT SYS_CONTEXT('USERENV', 'DB_NAME') AS DB FROM dual", [], { outFormat: oracledb.OUT_FORMAT_OBJECT });
+        const dbName = result.rows?.[0]?.DB || "unknown";
+        return res.json({
+          ok: true,
+          connected: true,
+          databaseType: dbType,
+          databaseName: dbName,
+          message: `Connected to ${dbType}: ${dbName}`,
+        });
+      } finally {
+        await oracleConnection.close().catch(() => {});
+      }
+    }
+
     return res.json({
       ok: false,
       connected: false,
       databaseType: dbType,
       databaseName: null,
-      message: `Invalid connection string for ${dbType}`,
-    });
-  }
-
-  try {
-    const result = await requestPool.query('SELECT current_database() as db');
-    const dbName = result.rows[0]?.db || 'unknown';
-    await requestPool.end();
-    return res.json({
-      ok: true,
-      connected: true,
-      databaseType: dbType,
-      databaseName: dbName,
-      message: `Connected to ${dbType}: ${dbName}`,
+      message: `Unsupported database type: ${dbType}`,
     });
   } catch (err) {
-    await requestPool.end().catch(() => {});
     return res.json({
       ok: false,
       connected: false,
