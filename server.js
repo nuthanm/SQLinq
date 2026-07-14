@@ -527,19 +527,144 @@ async function loadLatestConversionEventsFromDb() {
   };
 }
 
-async function loadLatestQualityFromFile() {
-  const p = path.join(root, "data", "quality-report.json");
-  try {
-    const text = await fs.readFile(p, "utf8");
-    const parsed = JSON.parse(text);
+function isFailureRow(row) {
+  const parse = String(row.parse_status || row.parseStatus || "").toLowerCase();
+  const convert = String(row.convert_status || row.convertStatus || "").toLowerCase();
+  const status = String(row.status || "").toLowerCase();
+  return parse === "fail" || convert === "fail" || status === "failed";
+}
+
+function isEdgeCaseRowForRelease(row) {
+  const area = String(row.area || "").toLowerCase();
+  const name = String(row.name || "").toLowerCase();
+  return area.includes("edge") || name.includes("edge case") || name.includes("edge-case");
+}
+
+function toIssueSet(rows) {
+  return new Set(
+    rows
+      .map((row) => String(row.issue_ref || row.issue || "").trim())
+      .filter(Boolean)
+  );
+}
+
+async function loadReleaseUpdatesFromDb(limit = 10) {
+  if (!pool) return [];
+
+  const runRes = await pool.query(
+    `SELECT id, suite_version, release_target, generated_at, totals
+     FROM benchmark_runs
+     ORDER BY generated_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+
+  if (!runRes.rows.length) return [];
+
+  const runIds = runRes.rows.map((row) => row.id);
+  const queryRes = await pool.query(
+    `SELECT run_id, query_id, name, area, parse_status, convert_status,
+            correctness, exact_match, time_ms, status, issue_ref, failure_reason, release_bucket
+     FROM benchmark_queries
+     WHERE run_id = ANY($1::bigint[])
+     ORDER BY query_id ASC`,
+    [runIds]
+  );
+
+  const byRunId = new Map();
+  queryRes.rows.forEach((row) => {
+    if (!byRunId.has(row.run_id)) byRunId.set(row.run_id, []);
+    byRunId.get(row.run_id).push(row);
+  });
+
+  return runRes.rows.map((run, index, runs) => {
+    const rows = byRunId.get(run.id) || [];
+    const totals = run.totals || {};
+    const failureRows = rows.filter(isFailureRow);
+    const edgeRows = rows.filter(isEdgeCaseRowForRelease);
+    const edgeFailures = edgeRows.filter(isFailureRow);
+    const currentIssues = toIssueSet(failureRows);
+
+    const previousRun = runs[index + 1] || null;
+    const previousRows = previousRun ? (byRunId.get(previousRun.id) || []) : [];
+    const previousIssues = toIssueSet(previousRows.filter(isFailureRow));
+    const fixedIssues = previousRun
+      ? [...previousIssues].filter((issue) => !currentIssues.has(issue))
+      : [];
+
+    const totalQueries = Number(totals.totalQueries ?? rows.length ?? 0);
+    const exactMatches = Number(totals.exactMatches ?? rows.filter((row) => row.exact_match).length);
+    const failures = Number(totals.failed ?? failureRows.length);
+    const partials = Number(
+      totals.partial ?? totals.partials ?? rows.filter((row) => String(row.convert_status || "").toLowerCase() === "partial").length
+    );
+
     return {
-      ...parsed,
-      source: "file",
-      message: null,
+      releaseTag: run.release_target || run.suite_version || `run-${run.id}`,
+      generatedAt: run.generated_at,
+      sourceQualityGeneratedAt: run.generated_at,
+      sourceSuiteVersion: run.suite_version || null,
+      totalQueries,
+      exactMatches,
+      failures,
+      partials,
+      edgeCaseTotal: edgeRows.length,
+      edgeCaseFailures: edgeFailures.length,
+      openIssues: [...currentIssues],
+      fixedIssues,
+      fixedIssueCount: fixedIssues.length,
+      failureIssueDraftCount: null,
+      pushedChanges: [
+        `${totalQueries} benchmark queries evaluated`,
+        `${exactMatches} exact matches`,
+        `${failures} failed conversions and ${partials} partial conversions`,
+        `${edgeRows.length} edge-case scenarios tracked (${edgeFailures.length} failures)`,
+        `${fixedIssues.length} previously open conversion issues resolved in this release cycle`,
+      ],
     };
-  } catch {
-    return null;
-  }
+  });
+}
+
+function buildReleaseCompareFromRecords(fromRelease, toRelease) {
+  if (!fromRelease || !toRelease) return null;
+
+  const fromIssues = new Set((fromRelease.openIssues || []).map((v) => String(v || "").trim()).filter(Boolean));
+  const toIssues = new Set((toRelease.openIssues || []).map((v) => String(v || "").trim()).filter(Boolean));
+  const fixedIssues = [...fromIssues].filter((issue) => !toIssues.has(issue));
+  const newIssues = [...toIssues].filter((issue) => !fromIssues.has(issue));
+  const persistentIssues = [...toIssues].filter((issue) => fromIssues.has(issue));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    fromRelease: {
+      releaseTag: fromRelease.releaseTag || "n/a",
+      generatedAt: fromRelease.generatedAt || null,
+      totalQueries: Number(fromRelease.totalQueries || 0),
+      failures: Number(fromRelease.failures || 0),
+      edgeCaseFailures: Number(fromRelease.edgeCaseFailures || 0),
+      openIssueCount: fromIssues.size,
+    },
+    toRelease: {
+      releaseTag: toRelease.releaseTag || "n/a",
+      generatedAt: toRelease.generatedAt || null,
+      totalQueries: Number(toRelease.totalQueries || 0),
+      failures: Number(toRelease.failures || 0),
+      edgeCaseFailures: Number(toRelease.edgeCaseFailures || 0),
+      openIssueCount: toIssues.size,
+    },
+    deltas: {
+      totalQueries: Number(toRelease.totalQueries || 0) - Number(fromRelease.totalQueries || 0),
+      failures: Number(toRelease.failures || 0) - Number(fromRelease.failures || 0),
+      edgeCaseFailures: Number(toRelease.edgeCaseFailures || 0) - Number(fromRelease.edgeCaseFailures || 0),
+      openIssues: toIssues.size - fromIssues.size,
+    },
+    fixedIssues,
+    fixedIssueCount: fixedIssues.length,
+    newIssues,
+    newIssueCount: newIssues.length,
+    persistentIssues,
+    persistentIssueCount: persistentIssues.length,
+  };
 }
 
 app.get("/api/health", async (_req, res) => {
@@ -573,10 +698,6 @@ app.get("/api/dashboard/quality", async (_req, res) => {
         message: "No database benchmark report is available yet.",
       });
     }
-
-    const fileReport = await loadLatestQualityFromFile();
-    if (fileReport) return res.json(fileReport);
-
     return res.json(dashSummary());
   } catch (err) {
     return res.status(500).json({
@@ -628,6 +749,59 @@ app.get("/api/dashboard/conversion-events", async (_req, res) => {
       source: 'error',
       message: err.message,
     });
+  }
+});
+
+app.get("/api/release-updates", async (_req, res) => {
+  try {
+    const releases = await loadReleaseUpdatesFromDb(10);
+    return res.json({
+      generatedAt: new Date().toISOString(),
+      releases,
+      source: dbEnabled() ? "database" : "unavailable",
+      message: releases.length ? null : "No release updates are available yet.",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      generatedAt: new Date().toISOString(),
+      releases: [],
+      source: "error",
+      message: err.message,
+    });
+  }
+});
+
+app.get("/api/release-compare", async (req, res) => {
+  try {
+    const releases = await loadReleaseUpdatesFromDb(10);
+    const fromTag = String(req.query.from || "").trim();
+    const toTag = String(req.query.to || "").trim();
+
+    let compare = null;
+    if (fromTag && toTag) {
+      const fromRelease = releases.find((release) => String(release.releaseTag) === fromTag) || null;
+      const toRelease = releases.find((release) => String(release.releaseTag) === toTag) || null;
+      compare = buildReleaseCompareFromRecords(fromRelease, toRelease);
+    } else if (releases.length >= 2) {
+      compare = buildReleaseCompareFromRecords(releases[1], releases[0]);
+    }
+
+    return res.json(compare || {
+      generatedAt: null,
+      fromRelease: null,
+      toRelease: null,
+      deltas: null,
+      fixedIssues: [],
+      fixedIssueCount: 0,
+      newIssues: [],
+      newIssueCount: 0,
+      persistentIssues: [],
+      persistentIssueCount: 0,
+      source: dbEnabled() ? "database" : "unavailable",
+      message: "No release comparison is available yet.",
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: err.message });
   }
 });
 

@@ -272,25 +272,24 @@ function renderIssueTrackingGraph(containerId) {
 }
 
 function renderMetrics() {
-  const mark = state.isFallback ? "*" : "";
   const stars = document.getElementById("statStars");
   const forks = document.getElementById("statForks");
   const pullRequests = document.getElementById("statPullRequests");
   const issues = document.getElementById("statIssues");
   const commits = document.getElementById("statCommits");
   if (state.repo) {
-    if (stars) stars.textContent = Number(state.repo.stargazers_count).toLocaleString() + mark;
-    if (forks) forks.textContent = Number(state.repo.forks_count).toLocaleString() + mark;
+    if (stars) stars.textContent = Number(state.repo.stargazers_count).toLocaleString();
+    if (forks) forks.textContent = Number(state.repo.forks_count).toLocaleString();
   }
   if (pullRequests) {
     pullRequests.textContent =
-      state.pullRequests == null ? "—" : Number(state.pullRequests).toLocaleString() + mark;
+      state.pullRequests == null ? "—" : Number(state.pullRequests).toLocaleString();
   }
   if (issues) {
     issues.textContent =
-      state.issuesOpen == null ? "—" : Number(state.issuesOpen).toLocaleString() + mark;
+      state.issuesOpen == null ? "—" : Number(state.issuesOpen).toLocaleString();
   }
-  if (commits) commits.textContent = state.commits.length.toLocaleString() + mark;
+  if (commits) commits.textContent = state.commits.length.toLocaleString();
 
   const open = state.issuesOpen;
   const closed = state.issuesClosed;
@@ -299,11 +298,11 @@ function renderMetrics() {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   };
-  set("bugOpen", open == null ? "—" : String(open) + mark);
-  set("bugClosed", closed == null ? "—" : String(closed) + mark);
-  set("bugIdentified", identified == null ? "—" : String(identified) + mark);
+  set("bugOpen", open == null ? "—" : String(open));
+  set("bugClosed", closed == null ? "—" : String(closed));
+  set("bugIdentified", identified == null ? "—" : String(identified));
   if (identified && identified > 0 && closed != null) {
-    set("bugFixPct", `${((closed / identified) * 100).toFixed(1)}%${mark}`);
+    set("bugFixPct", `${((closed / identified) * 100).toFixed(1)}%`);
   } else {
     set("bugFixPct", identified === 0 ? "n/a" : "—");
   }
@@ -441,8 +440,7 @@ function renderHeatmap() {
 
   if (caption) {
     const total = [...counts.values()].reduce((a, b) => a + b, 0);
-    const suffix = state.isFallback ? " \u00b7 \u26a0 Cached data" : "";
-    caption.textContent = `Source: GitHub API \u00b7 last ~52 weeks \u00b7 ${total} commit(s) \u00b7 refreshed ${new Date().toLocaleString()}${suffix}`;
+    caption.textContent = `Source: GitHub API \u00b7 last ~52 weeks \u00b7 ${total} commit(s) \u00b7 refreshed ${new Date().toLocaleString()}`;
   }
 }
 
@@ -1462,12 +1460,12 @@ async function loadReleaseUpdates() {
   if (!document.getElementById("releaseUpdatesTable")) return;
   setReleaseUpdatesPill("Loading release updates...");
   try {
-    const res = await fetch("/data/release-updates.json", { cache: "no-store" });
+    const res = await fetch(apiUrl("/api/release-updates"), { cache: "no-store" });
     if (!res.ok) throw new Error(`release updates unavailable (${res.status})`);
     const payload = await res.json();
     const records = Array.isArray(payload?.releases) ? payload.releases : [];
     renderReleaseUpdates(records);
-    setReleaseUpdatesPill("Auto-generated release updates", "live");
+    setReleaseUpdatesPill(records.length ? "Release updates from database" : "No release updates", records.length ? "live" : "error");
   } catch (err) {
     renderReleaseUpdates([]);
     setReleaseUpdatesPill("Release updates unavailable", "error");
@@ -1480,8 +1478,8 @@ async function loadReleaseCompare() {
   setReleaseComparePill("Loading release comparison...");
   try {
     const [compareRes, updatesRes] = await Promise.all([
-      fetch("/data/release-compare.json", { cache: "no-store" }),
-      fetch("/data/release-updates.json", { cache: "no-store" }),
+      fetch(apiUrl("/api/release-compare"), { cache: "no-store" }),
+      fetch(apiUrl("/api/release-updates"), { cache: "no-store" }),
     ]);
 
     let comparePayload = null;
@@ -1496,14 +1494,7 @@ async function loadReleaseCompare() {
 
     if (comparePayload && comparePayload.fromRelease && comparePayload.toRelease) {
       renderReleaseCompare(comparePayload);
-      setReleaseComparePill("Explicit release compare", "live");
-      return;
-    }
-
-    if (releases.length >= 2) {
-      const fallbackCompare = buildCompareFromRecords(releases[1], releases[0]);
-      renderReleaseCompare(fallbackCompare);
-      setReleaseComparePill(`Compared ${releases[1].releaseTag} -> ${releases[0].releaseTag}`, "live");
+      setReleaseComparePill(`Compared ${comparePayload.fromRelease.releaseTag} -> ${comparePayload.toRelease.releaseTag}`, "live");
       return;
     }
 
@@ -1533,7 +1524,13 @@ async function loadQualityDashboard() {
     if (!res.ok) throw new Error(`dashboard quality API unavailable (${res.status})`);
     const report = await res.json();
     renderQualityDashboard(report);
-    setQualityPill(report?.source === "database" ? "Live benchmark report" : "Latest report", "live");
+    if (report?.source === "database") {
+      setQualityPill("Live benchmark report", "live");
+    } else if (Array.isArray(report?.queries) && report.queries.length) {
+      setQualityPill("Benchmark report loaded", "live");
+    } else {
+      setQualityPill("No benchmark report", "error");
+    }
   } catch (err) {
     console.warn("Benchmark report unavailable:", err);
     renderQualityDashboard(EMPTY_QUALITY_REPORT);
@@ -1912,30 +1909,6 @@ if (copyConversion) {
 }
 
 let loading = false;
-const GITHUB_CACHE_KEY = "sqlinq_github_cache";
-
-function saveGithubCache() {
-  try {
-    localStorage.setItem(GITHUB_CACHE_KEY, JSON.stringify({
-      timestamp: Date.now(),
-      cachedState: {
-        repo: state.repo,
-        commits: state.commits,
-        issuesOpen: state.issuesOpen,
-        issuesClosed: state.issuesClosed,
-        issuesInProgress: state.issuesInProgress,
-        pullRequests: state.pullRequests,
-      },
-    }));
-  } catch {}
-}
-
-function loadGithubCache() {
-  try {
-    const raw = localStorage.getItem(GITHUB_CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
 
 function showFallbackBanner(message) {
   let banner = document.getElementById("githubFallbackBanner");
@@ -1996,10 +1969,6 @@ async function loadGithubLive(force = false) {
     state.issuesClosed = closedIssues.total_count ?? 0;
     state.issuesInProgress = inProgressIssues.total_count ?? 0;
     state.pullRequests = openPullRequests.total_count ?? 0;
-    state.isFallback = false;
-    state.fallbackReason = null;
-
-    saveGithubCache();
     hideFallbackBanner();
 
     renderMetrics();
@@ -2009,33 +1978,16 @@ async function loadGithubLive(force = false) {
   } catch (err) {
     console.error(err);
     const isRateLimit = /403|rate.?limit|429/i.test(err.message || "");
-    const cached = loadGithubCache();
-
-    if (cached?.cachedState) {
-      Object.assign(state, cached.cachedState);
-      state.isFallback = true;
-      const ageMin = Math.round((Date.now() - cached.timestamp) / 60000);
-      const reason = isRateLimit
-        ? `GitHub API rate limit exceeded. Showing cached data from ${ageMin} minute(s) ago.`
-        : `Network error: ${err.message?.slice(0, 120)}. Showing cached data from ${ageMin} minute(s) ago.`;
-      state.fallbackReason = reason;
-      setLivePill(`\u26a0 Fallback data* \u00b7 cached ${ageMin}m ago`, "is-error");
-      showFallbackBanner(reason);
-      renderMetrics();
-      renderCommitTable();
-      renderHeatmap();
-    } else {
-      setLivePill(isRateLimit ? "GitHub rate limit \u2014 no cache available" : "GitHub API unavailable (network error)", "is-error");
-      const body = document.querySelector("#commitTable tbody");
-      if (body) {
-        body.innerHTML = `<tr><td colspan="4">${escapeHtml(err.message || String(err))}</td></tr>`;
-      }
-      showFallbackBanner(
-        isRateLimit
-          ? "GitHub API rate limit exceeded. No cached data is available yet. Reload after a few minutes."
-          : `GitHub API unavailable: ${err.message?.slice(0, 200) || "Network error"}`
-      );
+    setLivePill(isRateLimit ? "GitHub rate limit exceeded" : "GitHub API unavailable", "is-error");
+    const body = document.querySelector("#commitTable tbody");
+    if (body) {
+      body.innerHTML = `<tr><td colspan="4">${escapeHtml(err.message || String(err))}</td></tr>`;
     }
+    showFallbackBanner(
+      isRateLimit
+        ? "GitHub API rate limit exceeded. Live data could not be loaded."
+        : `GitHub API unavailable: ${err.message?.slice(0, 200) || "Network error"}`
+    );
   } finally {
     loading = false;
   }
