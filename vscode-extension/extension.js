@@ -30,32 +30,55 @@ function getTelemetryConfig() {
 }
 
 function getDbPresets() {
-  // Load presets from process env and workspace .env files.
+  // Load presets only from workspace .env files.
   const presets = {};
-  const workspaceEnv = loadWorkspaceEnv();
-  const env = { ...workspaceEnv, ...process.env };
+  const diagnostics = {
+    filesRead: [],
+    postgresKeyUsed: null,
+  };
+  const snapshot = loadWorkspaceEnvWithMeta();
+  const workspaceEnv = snapshot.values;
+  diagnostics.filesRead = snapshot.filesRead;
+  const env = workspaceEnv;
+
+  const clean = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    // Guard against common placeholder values.
+    if (/^postgres:\/\/user:password@localhost:5432\/database$/i.test(text)) return '';
+    if (/^mysql:\/\/user:password@localhost:3306\/database$/i.test(text)) return '';
+    return text;
+  };
   
   // PostgreSQL
-  const pgUrl = env.DATABASE_URL
-    || env.POSTGRES_URL
-    || env.DATABASE_POSTGRESQL
-    || env.DATABASE_POSTGRES
-    || env.DATABASE_POSTGRESS;
+  const pgCandidates = [
+    { key: 'DATABSE_POSTGRESS', value: env.DATABSE_POSTGRESS },
+    { key: 'POSTGRES_URL', value: env.POSTGRES_URL },
+    { key: 'DATABASE_POSTGRESQL', value: env.DATABASE_POSTGRESQL },
+    { key: 'DATABASE_POSTGRES', value: env.DATABASE_POSTGRES },
+    { key: 'DATABASE_POSTGRESS', value: env.DATABASE_POSTGRESS },
+  ];
+  const pgFound = pgCandidates.find((c) => clean(c.value));
+  const pgUrl = pgFound ? clean(pgFound.value) : '';
+  diagnostics.postgresKeyUsed = pgFound ? pgFound.key : null;
   if (pgUrl) presets.postgresql = pgUrl;
   
   // SQL Server
-  const mssqlUrl = env.DATABASE_MSSQL || env.SQL_SERVER_URL || env.DATABASE_SQLSERVER;
+  const mssqlUrl = clean(env.DATABASE_MSSQL || env.SQL_SERVER_URL || env.DATABASE_SQLSERVER);
   if (mssqlUrl) presets.mssql = mssqlUrl;
   
   // MySQL
-  const mysqlUrl = env.DATABASE_MYSQL || env.MYSQL_URL;
+  const mysqlUrl = clean(env.DATABASE_MYSQL || env.MYSQL_URL);
   if (mysqlUrl) presets.mysql = mysqlUrl;
   
   // Oracle
-  const oracleUrl = env.DATABASE_ORACLE || env.ORACLE_URL;
+  const oracleUrl = clean(env.DATABASE_ORACLE || env.ORACLE_URL);
   if (oracleUrl) presets.oracle = oracleUrl;
   
-  return presets;
+  return {
+    presets,
+    diagnostics,
+  };
 }
 
 function parseDotEnvText(text) {
@@ -77,23 +100,40 @@ function parseDotEnvText(text) {
 }
 
 function loadWorkspaceEnv() {
+  return loadWorkspaceEnvWithMeta().values;
+}
+
+function loadWorkspaceEnvWithMeta() {
   const folders = vscode.workspace.workspaceFolders || [];
-  const firstFolder = folders.length ? folders[0].uri.fsPath : '';
-  if (!firstFolder) return {};
+  if (!folders.length) {
+    return {
+      values: {},
+      filesRead: [],
+    };
+  }
 
   const candidates = ['.env', '.env.local'];
   const merged = {};
-  for (const fileName of candidates) {
-    try {
-      const fullPath = path.join(firstFolder, fileName);
-      if (!fs.existsSync(fullPath)) continue;
-      const fileText = fs.readFileSync(fullPath, 'utf8');
-      Object.assign(merged, parseDotEnvText(fileText));
-    } catch {
-      // Ignore malformed or inaccessible env files; process env is still used.
+  const filesRead = [];
+  for (const folder of folders) {
+    const folderPath = folder?.uri?.fsPath;
+    if (!folderPath) continue;
+    for (const fileName of candidates) {
+      try {
+        const fullPath = path.join(folderPath, fileName);
+        if (!fs.existsSync(fullPath)) continue;
+        const fileText = fs.readFileSync(fullPath, 'utf8');
+        Object.assign(merged, parseDotEnvText(fileText));
+        filesRead.push(fullPath);
+      } catch {
+        // Ignore malformed or inaccessible env files; process env is still used.
+      }
     }
   }
-  return merged;
+  return {
+    values: merged,
+    filesRead,
+  };
 }
 
 function getDbPresetTemplate(preset) {
@@ -115,16 +155,20 @@ function getDbPresetTemplate(preset) {
 
 function resolveDbPresetConnection(preset) {
   const key = String(preset || '').toLowerCase();
-  const presets = getDbPresets();
+  const { presets, diagnostics } = getDbPresets();
+
   if (presets[key]) {
     return {
       connectionString: String(presets[key]),
       source: 'environment',
+      diagnostics,
     };
   }
+
   return {
-    connectionString: getDbPresetTemplate(key),
-    source: 'template',
+    connectionString: '',
+    source: 'missing-env',
+    diagnostics,
   };
 }
 
@@ -1021,6 +1065,9 @@ function getWebviewContent(webview, state) {
         });
       }
 
+      // Show env diagnostics immediately so users can verify local loading without selecting a preset.
+      vscode.postMessage({ type: 'presetDiagnostics' });
+
       document.getElementById('insert').addEventListener('click', () => {
         vscode.postMessage({ type: 'insert', output: output.textContent });
       });
@@ -1036,6 +1083,14 @@ function getWebviewContent(webview, state) {
 
       window.addEventListener('message', (event) => {
         const message = event.data;
+        if (message.type === 'presetDiagnostics') {
+          const diag = message.diagnostics || {};
+          const filesRead = Array.isArray(diag.filesRead) && diag.filesRead.length
+            ? diag.filesRead.join(', ')
+            : 'none';
+          const keyUsed = diag.postgresKeyUsed || 'none';
+          status.textContent = 'Preset diagnostics: key=' + keyUsed + '; files=' + filesRead;
+        }
         if (message.type === 'result') {
           setState(message.status, message.output, message.outputs);
         }
@@ -1070,8 +1125,18 @@ function getWebviewContent(webview, state) {
             // Reset selection so choosing the same preset again still fires change.
             dbPreset.value = '';
           }
-          const sourceLabel = message.source === 'environment' ? 'environment/.env' : 'default template';
-          status.textContent = 'Loaded ' + (message.preset || 'selected') + ' connection string from ' + sourceLabel + '.';
+          const diag = message.diagnostics || {};
+          const filesRead = Array.isArray(diag.filesRead) && diag.filesRead.length
+            ? diag.filesRead.join(', ')
+            : 'none';
+          const keyUsed = diag.postgresKeyUsed || 'none';
+          let sourceLabel = 'environment/.env';
+          if (message.source === 'environment') sourceLabel = 'environment/.env';
+          if (message.source === 'missing-env') {
+            status.textContent = 'No environment value found for ' + (message.preset || 'selected') + ' in .env/.env.local. Expected key: DATABSE_POSTGRESS. Connection string was cleared. Diagnostics: key=' + keyUsed + '; files=' + filesRead;
+          } else {
+            status.textContent = 'Loaded ' + (message.preset || 'selected') + ' connection string from ' + sourceLabel + '. Diagnostics: key=' + keyUsed + '; files=' + filesRead;
+          }
         }
       });
     </script>
@@ -1119,6 +1184,15 @@ function activate(context) {
 
     panel.webview.onDidReceiveMessage(async (message) => {
       if (!message || typeof message !== 'object') return;
+
+      if (message.type === 'presetDiagnostics') {
+        const snapshot = getDbPresets();
+        panel.webview.postMessage({
+          type: 'presetDiagnostics',
+          diagnostics: snapshot.diagnostics,
+        });
+        return;
+      }
 
       if (message.type === 'convert') {
         const connectivityMode = message.connectivity || 'without';
@@ -1193,6 +1267,7 @@ function activate(context) {
           preset: preset,
           source: resolved.source,
           connectionString: resolved.connectionString,
+          diagnostics: resolved.diagnostics,
         });
         return;
       }
