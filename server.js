@@ -113,6 +113,30 @@ function deriveDbRecommendationsSqlServer(statsText) {
 }
 
 const pool = buildPool();
+let conversionEventsTableEnsured = false;
+
+async function ensureConversionEventsTable() {
+  if (!pool || conversionEventsTableEnsured) return;
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS conversion_events (
+      id BIGSERIAL PRIMARY KEY,
+      source TEXT NOT NULL,
+      connectivity_mode TEXT NOT NULL,
+      parse_status TEXT NOT NULL,
+      convert_status TEXT NOT NULL,
+      correctness NUMERIC(5,2),
+      exact_match BOOLEAN,
+      time_ms NUMERIC(10,2),
+      issue_ref TEXT,
+      payload JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`
+  );
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_conversion_events_created_at ON conversion_events(created_at DESC)`
+  );
+  conversionEventsTableEnsured = true;
+}
 
 function dashSummary() {
   return {
@@ -490,6 +514,7 @@ app.post("/api/events/conversion", async (req, res) => {
   }
 
   try {
+    await ensureConversionEventsTable();
     await pool.query(
       `INSERT INTO conversion_events (
         source, connectivity_mode, parse_status, convert_status,
@@ -509,6 +534,14 @@ app.post("/api/events/conversion", async (req, res) => {
     );
     return res.status(202).json({ accepted: true, stored: true });
   } catch (err) {
+    if (/relation\s+"?conversion_events"?\s+does not exist/i.test(String(err.message || ""))) {
+      conversionEventsTableEnsured = false;
+      return res.status(202).json({
+        accepted: true,
+        stored: false,
+        message: "conversion_events table is missing; telemetry accepted but not persisted yet.",
+      });
+    }
     return res.status(500).json({ accepted: false, stored: false, message: err.message });
   }
 });

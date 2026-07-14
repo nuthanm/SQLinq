@@ -53,7 +53,6 @@ function getDbPresets() {
   
   return presets;
 }
-}
 
 function fnv1a32(value) {
   let hash = 0x811c9dc5;
@@ -385,7 +384,13 @@ async function sendConversionEvent(data) {
         signal: controller ? controller.signal : undefined,
       });
       if (!res.ok) {
-        throw new Error(`Telemetry sync failed with status ${res.status}`);
+        let details = '';
+        try {
+          details = (await res.text()).trim();
+        } catch {
+          details = '';
+        }
+        throw new Error(`Telemetry sync failed with status ${res.status}${details ? `: ${details}` : ''}`);
       }
     } else {
       await postViaHttps();
@@ -528,7 +533,7 @@ async function convertSelectionDirect(editor, target = 'method') {
   if (sync.ok) {
     vscode.window.showInformationMessage('Telemetry synced to dashboard.');
   } else {
-    vscode.window.showWarningMessage(`Telemetry sync failed: ${sync.reason}`);
+    vscode.window.showInformationMessage('Conversion succeeded. Telemetry is currently unavailable.');
   }
 }
 
@@ -867,12 +872,15 @@ function getWebviewContent(webview, state) {
         vscode.postMessage({ type: 'testConnection', connectionString: connectionString.value });
       });
 
-      document.getElementById('dbPreset').addEventListener('change', (e) => {
-        const preset = e.target.value;
-        if (preset) {
-          vscode.postMessage({ type: 'loadDbPreset', preset: preset });
-        }
-      });
+      const dbPreset = document.getElementById('dbPreset');
+      if (dbPreset) {
+        dbPreset.addEventListener('change', (e) => {
+          const preset = e.target.value;
+          if (preset) {
+            vscode.postMessage({ type: 'loadDbPreset', preset: preset });
+          }
+        });
+      }
 
       document.getElementById('insert').addEventListener('click', () => {
         vscode.postMessage({ type: 'insert', output: output.textContent });
@@ -918,7 +926,7 @@ function getWebviewContent(webview, state) {
         }
         if (message.type === 'dbPresetLoaded') {
           connectionString.value = message.connectionString || '';
-          status.textContent = `Loaded ${message.preset} connection string from environment.`;
+          status.textContent = 'Loaded ' + (message.preset || 'selected') + ' connection string from environment.';
         }
       });
     </script>
@@ -1253,7 +1261,7 @@ function activate(context) {
     if (sync.ok) {
       vscode.window.showInformationMessage('Telemetry synced to dashboard.');
     } else {
-      vscode.window.showWarningMessage(`Telemetry sync failed: ${sync.reason}`);
+      vscode.window.showInformationMessage('Conversion succeeded. Telemetry is currently unavailable.');
     }
   });
 
