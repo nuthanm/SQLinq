@@ -1,67 +1,62 @@
 -- SQL Server single-table SELECT combinations
 
 -- 1. Basic projection
-SELECT CustomerId, Name
-FROM dbo.Customers;
+customers
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 2. Select all columns
-SELECT *
-FROM dbo.Customers;
-
+customers;
 -- 3. Projection with alias
-SELECT c.CustomerId, c.Name
-FROM dbo.Customers AS c;
-
+customers
+  .Select(c => new { c.CustomerId, c.Name });
 -- 4. Basic filter
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE IsActive = 1;
-
+customers
+  .Where(c => c.IsActive == 1)
+  .Select(c => new { c.CustomerId, c.Name });
 -- 5. Filter + order ascending
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE IsActive = 1
-ORDER BY Name ASC;
-
+customers
+  .Where(c => c.IsActive == 1)
+  .OrderBy(c => c.Name)
+  .Select(c => new { c.CustomerId, c.Name });
 -- 6. Filter + order descending
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE IsActive = 1
-ORDER BY Name DESC;
+customers
+  .Where(c => c.IsActive == 1)
+  .OrderByDescending(c => c.Name)
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 7. DISTINCT projection
-SELECT DISTINCT Name
-FROM dbo.Customers;
+customers
+  .Select(c => new { c.Name });
 
 -- 8. LIKE starts with
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE Name LIKE 'A%';
+customers
+  .Where(c => c.Name.StartsWith("c.A"))
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 9. LIKE ends with
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE Name LIKE '%son';
+customers
+  .Where(c => c.Name.EndsWith("c.son"))
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 10. LIKE contains
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE Name LIKE '%tech%';
+customers
+  .Where(c => c.Name.Contains("c.tech"))
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 11. NULL check
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE MiddleName IS NULL;
+customers
+  .Where(c => c.MiddleName == null)
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 12. NOT NULL check
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE MiddleName IS NOT NULL;
+customers
+  .Where(c => c.MiddleName != null)
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 13. Multi-condition filter
-SELECT CustomerId, Name
-FROM dbo.Customers
-WHERE IsActive = 1 AND CustomerId > 100;
+customers
+  .Where(c => c.IsActive == 1 && c.CustomerId > 100)
+  .Select(c => new { c.CustomerId, c.Name });
 
 -- 14. Multi-column order with directions
 customers

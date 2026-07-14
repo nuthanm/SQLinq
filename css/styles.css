@@ -229,10 +229,10 @@ pre {
 .hero {
   position: relative;
   overflow: hidden;
-  min-height: clamp(360px, 56vh, 540px);
+  min-height: clamp(420px, 62vh, 620px);
   display: flex;
   align-items: flex-start;
-  padding: 2.1rem 0 0.85rem;
+  padding: 2.6rem 0 1.35rem;
 }
 
 .hero-atmosphere {
@@ -260,9 +260,13 @@ pre {
 .hero-grid {
   position: relative;
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 2.5rem;
-  align-items: start;
+  grid-template-columns: 1.02fr 0.98fr;
+  gap: 2.1rem;
+  align-items: center;
+}
+
+.hero-copy {
+  max-width: 640px;
 }
 
 .brand-hero {
@@ -290,25 +294,25 @@ pre {
 
 .hero-emoji {
   margin: 0 0 0.65rem;
-  font-size: 2.45rem;
+  font-size: 2.3rem;
   line-height: 1;
 }
 
 .hero h1,
 .page-hero h1 {
   margin: 0 0 1rem;
-  font-size: clamp(1.45rem, 2.4vw, 1.85rem);
+  font-size: clamp(2rem, 4.3vw, 3.35rem);
   font-weight: 600;
   letter-spacing: -0.03em;
-  line-height: 1.25;
-  max-width: 28ch;
+  line-height: 1.12;
+  max-width: 16ch;
 }
 
 .lede {
   margin: 0 0 1.5rem;
   color: var(--ink-soft);
-  max-width: 42ch;
-  font-size: 1.05rem;
+  max-width: 44ch;
+  font-size: 1.15rem;
 }
 
 .cta-row {
@@ -626,12 +630,14 @@ pre {
 }
 
 .hero-board {
-  background: linear-gradient(160deg, #071327 0%, #020a1a 100%);
+  background: linear-gradient(162deg, #071327 0%, #041530 55%, #020a1a 100%);
   border: 1px solid #193452;
-  border-radius: 16px;
-  padding: 0.85rem;
+  border-radius: 20px;
+  padding: 0.95rem;
   color: #dce8f7;
-  box-shadow: 0 26px 54px rgba(2, 12, 30, 0.45);
+  box-shadow:
+    0 28px 62px rgba(2, 12, 30, 0.4),
+    inset 0 0 0 1px rgba(74, 128, 188, 0.2);
 }
 
 .board-head {
@@ -664,14 +670,14 @@ pre {
 .board-columns {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: 0.65rem;
+  gap: 0.75rem;
 }
 
 .board-stack {
   border: 1px solid #1f3654;
-  border-radius: 12px;
+  border-radius: 14px;
   background: rgba(5, 17, 36, 0.72);
-  padding: 0.7rem;
+  padding: 0.75rem;
 }
 
 .board-stack h2 {
@@ -730,7 +736,7 @@ pre {
 .board-item {
   border: 1px solid #1f3b60;
   border-radius: 10px;
-  padding: 0.46rem 0.52rem;
+  padding: 0.5rem 0.56rem;
   margin-bottom: 0.38rem;
   display: grid;
   gap: 0.18rem;
@@ -3001,11 +3007,21 @@ kbd {
 
   .hero-visual {
     order: 2;
-    margin-top: 0.3rem;
+    margin-top: 0.55rem;
   }
 
   .hero-copy {
     order: 1;
+    max-width: none;
+  }
+
+  .hero h1,
+  .page-hero h1 {
+    max-width: 20ch;
+  }
+
+  .lede {
+    font-size: 1.03rem;
   }
 
   .trend-columns {
@@ -3072,6 +3088,16 @@ kbd {
 
   .hero-board {
     padding: 0.72rem;
+  }
+
+  .hero h1,
+  .page-hero h1 {
+    font-size: clamp(1.72rem, 7.8vw, 2.25rem);
+    max-width: 100%;
+  }
+
+  .hero {
+    padding: 2.05rem 0 1rem;
   }
 
   .board-total {
