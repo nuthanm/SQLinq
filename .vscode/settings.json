@@ -1,3 +1,0 @@
-{
-    "sqlinq.dbConnectionString": "postgresql://neondb_owner:npg_F2vhlCaLDtn0@ep-floral-hill-at7s5po2-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-}
